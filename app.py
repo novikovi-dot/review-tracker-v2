@@ -121,7 +121,8 @@ excel_file = create_excel_file(df)
                 "Product": product_name,
                 "Source": source,
                 "Status": "Complete",
-                "Reviews": len(df)
+                "Reviews": len(df),
+                "New Saved": saved_count
             })
 
             if show_preview:
