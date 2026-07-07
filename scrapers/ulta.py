@@ -175,7 +175,7 @@ def scrape_product(link, delay_seconds, review_progress_bar=None, review_progres
             review_progress_text
         )
 
-        if not df.empty:
+        if df is not None and not df.empty:
             return df, product_id
 
     return None, None
