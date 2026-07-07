@@ -31,6 +31,7 @@ def extract_possible_ids(link):
 
     pimprod_match = re.search(r"pimprod\d+", link)
     impprod_match = re.search(r"[a-zA-Z]*[iI]mpprod\d+", link)
+    mkt_match = re.search(r"mkt\d+", link)
     sku_match = re.search(r"sku=(\d+)", link)
 
     if pimprod_match:
@@ -38,6 +39,9 @@ def extract_possible_ids(link):
 
     if impprod_match:
         ids.append(impprod_match.group(0))
+
+    if mkt_match:
+        ids.append(mkt_match.group(0))
 
     if sku_match:
         ids.append(sku_match.group(1))
