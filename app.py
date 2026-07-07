@@ -9,6 +9,8 @@ from scrapers.ulta import (
     clean_filename
 )
 
+from database.db import save_reviews
+
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
 
 APP_PASSWORD = "abc"
@@ -103,8 +105,14 @@ if st.button("Scrape Reviews", use_container_width=True):
                 continue
 
             df = df.drop_duplicates(subset=["review_id"])
+            saved_count = save_reviews(
+             df=df,
+             source="Ulta",
+             product_name=product_name,
+             product_url=link
+            )
 
-            excel_file = create_excel_file(df)
+excel_file = create_excel_file(df)
             file_name = f"{product_name}.xlsx"
 
             all_excel_files.append((file_name, excel_file))
