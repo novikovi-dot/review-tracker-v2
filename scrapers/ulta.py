@@ -15,49 +15,35 @@ def clean_filename(text):
     text = re.sub(r"www\.ulta\.com/p/", "", text)
     text = text.split("?")[0]
     text = text.split("#")[0]
-    text = re.sub(r"-pimprod\d+", "", text)
-    text = re.sub(r"-xlsImpprod\d+", "", text)
+    text = re.sub(r"-(pimprod|mkt|xlsImpprod)\d+", "", text)
     text = re.sub(r"[^a-zA-Z0-9]+", "_", text)
     text = text.strip("_")
-
-    if not text:
-        return "ulta_reviews"
-
-    return text[:120]
+    return text[:120] if text else "ulta_reviews"
 
 
 def extract_possible_ids(link):
     ids = []
 
-    pimprod_match = re.search(r"pimprod\d+", link)
-    impprod_match = re.search(r"[a-zA-Z]*[iI]mpprod\d+", link)
-    mkt_match = re.search(r"mkt\d+", link)
-    sku_match = re.search(r"sku=(\d+)", link)
+    patterns = [
+        r"pimprod\d+",
+        r"mkt\d+",
+        r"[a-zA-Z]*[iI]mpprod\d+",
+        r"sku=(\d+)"
+    ]
 
-    if pimprod_match:
-        ids.append(pimprod_match.group(0))
+    for pattern in patterns:
+        match = re.search(pattern, link)
+        if match:
+            ids.append(match.group(1) if match.groups() else match.group(0))
 
-    if impprod_match:
-        ids.append(impprod_match.group(0))
-
-    if mkt_match:
-        ids.append(mkt_match.group(0))
-
-    if sku_match:
-        ids.append(sku_match.group(1))
-
-    return ids
+    return list(dict.fromkeys(ids))
 
 
 def get_property(details, property_key):
-    properties = details.get("properties", [])
-
-    for prop in properties:
+    for prop in details.get("properties", []):
         if prop.get("key") == property_key:
             values = prop.get("value", [])
-            if values:
-                return values[0]
-
+            return values[0] if values else ""
     return ""
 
 
@@ -69,22 +55,23 @@ def make_request(url, params):
                 params=params,
                 verify=False,
                 timeout=30,
-                headers={"User-Agent": "Mozilla/5.0"}
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "application/json"
+                }
             )
 
             if response.status_code == 200:
                 return response
 
             if response.status_code in [429, 500, 502, 503, 504]:
-                wait_time = 8 + attempt * 8
-                time.sleep(wait_time)
+                time.sleep(8 + attempt * 8)
                 continue
 
             return None
 
         except requests.exceptions.RequestException:
-            wait_time = 8 + attempt * 8
-            time.sleep(wait_time)
+            time.sleep(8 + attempt * 8)
 
     return None
 
@@ -167,6 +154,9 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
 
 def scrape_product(link, delay_seconds, review_progress_bar=None, review_progress_text=None):
     possible_ids = extract_possible_ids(link)
+
+    if review_progress_text is not None:
+        review_progress_text.write(f"Trying product IDs: {', '.join(possible_ids)}")
 
     if not possible_ids:
         return None, None
