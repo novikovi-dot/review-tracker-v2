@@ -112,7 +112,7 @@ if st.button("Scrape Reviews", use_container_width=True):
              product_url=link
             )
 
-excel_file = create_excel_file(df)
+            excel_file = create_excel_file(df)
             file_name = f"{product_name}.xlsx"
 
             all_excel_files.append((file_name, excel_file))
