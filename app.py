@@ -11,7 +11,7 @@ from scrapers.ulta import (
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
 
-APP_PASSWORD = "kendo"
+APP_PASSWORD = "abc"
 
 
 def check_password():
