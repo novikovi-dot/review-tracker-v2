@@ -47,8 +47,12 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
         return df
 
     elif source == "Sephora":
-        st.warning("Sephora scraping is not added yet.")
-        return None
+        return scrape_sephora_product(
+            link,
+            delay_seconds,
+            review_progress_bar,
+            review_progress_text
+       )
 
     elif source == "Brand Website":
         st.warning("Brand Website scraping is not added yet.")
