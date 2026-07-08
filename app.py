@@ -11,6 +11,8 @@ from scrapers.ulta import (
 
 from scrapers.sephora import scrape_sephora_product
 
+from scrapers.brand import scrape_brand_product
+
 from database.db import save_reviews
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
@@ -55,8 +57,12 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
        )
 
     elif source == "Brand Website":
-        st.warning("Brand Website scraping is not added yet.")
-        return None
+        return scrape_brand_product(
+            link,
+            delay_seconds,
+            review_progress_bar,
+            review_progress_text
+       )
 
     else:
         st.error("Unknown source selected.")
