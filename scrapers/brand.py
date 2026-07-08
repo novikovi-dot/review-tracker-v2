@@ -6,6 +6,7 @@ import pandas as pd
 
 YOTPO_STORE_ID = "eEgpPzBZusAXrXgLzWNhAJ6yM7P3XEnyRrdRAovz"
 
+from bs4 import BeautifulSoup
 
 def extract_yotpo_product_id(url_or_api_url):
     match = re.search(r"/product/(\d+)/reviews", url_or_api_url)
