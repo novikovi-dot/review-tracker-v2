@@ -9,6 +9,8 @@ from scrapers.ulta import (
     clean_filename
 )
 
+from scrapers.sephora import scrape_sephora_product
+
 from database.db import save_reviews
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
