@@ -4,7 +4,7 @@ import zipfile
 from io import BytesIO
 
 from scrapers.ulta import (
-    scrape_product,
+    scrape_product as scrape_ulta_product,
     create_excel_file,
     clean_filename
 )
@@ -34,6 +34,29 @@ def check_password():
         st.stop()
 
 
+def scrape_selected_source(source, link, delay_seconds, review_progress_bar, review_progress_text):
+    if source == "Ulta":
+        df, working_id = scrape_ulta_product(
+            link,
+            delay_seconds,
+            review_progress_bar,
+            review_progress_text
+        )
+        return df
+
+    elif source == "Sephora":
+        st.warning("Sephora scraping is not added yet.")
+        return None
+
+    elif source == "Brand Website":
+        st.warning("Brand Website scraping is not added yet.")
+        return None
+
+    else:
+        st.error("Unknown source selected.")
+        return None
+
+
 check_password()
 
 st.title("⭐ Beauty Review Tracker")
@@ -44,10 +67,16 @@ source = st.selectbox(
     ["Ulta", "Sephora", "Brand Website"]
 )
 
+placeholder_by_source = {
+    "Ulta": "https://www.ulta.com/p/...",
+    "Sephora": "https://www.sephora.com/product/...",
+    "Brand Website": "https://olehenriksen.com/products/..."
+}
+
 product_links_text = st.text_area(
     "Product links",
     height=160,
-    placeholder="https://www.ulta.com/p/..."
+    placeholder=placeholder_by_source[source]
 )
 
 with st.expander("Settings"):
@@ -67,104 +96,110 @@ if st.button("Scrape Reviews", use_container_width=True):
 
     if not links:
         st.error("Please paste at least one product link.")
-    elif source != "Ulta":
-        st.warning(f"{source} scraping is not added yet. Use Ulta for now.")
-    else:
-        all_excel_files = []
+        st.stop()
 
-        product_progress_bar = st.progress(0)
-        product_progress_text = st.empty()
-        review_progress_bar = st.progress(0)
-        review_progress_text = st.empty()
+    all_excel_files = []
 
-        results_summary = []
+    product_progress_bar = st.progress(0)
+    product_progress_text = st.empty()
+    review_progress_bar = st.progress(0)
+    review_progress_text = st.empty()
 
-        for index, link in enumerate(links, start=1):
-            product_progress_text.write(f"Product {index} of {len(links)}")
-            product_progress_bar.progress((index - 1) / len(links))
+    results_summary = []
 
-            review_progress_bar.progress(0)
-            review_progress_text.write("Finding reviews...")
+    for index, link in enumerate(links, start=1):
+        product_progress_text.write(f"Product {index} of {len(links)}")
+        product_progress_bar.progress((index - 1) / len(links))
 
-            df, working_id = scrape_product(
-                link,
-                delay_seconds,
-                review_progress_bar,
-                review_progress_text
-            )
+        review_progress_bar.progress(0)
+        review_progress_text.write("Finding reviews...")
 
-            product_name = clean_filename(link)
+        product_name = clean_filename(link)
 
-            if df is None or df.empty:
-                results_summary.append({
-                    "Product": product_name,
-                    "Source": source,
-                    "Status": "No reviews found",
-                    "Reviews": 0
-                })
-                continue
+        df = scrape_selected_source(
+            source,
+            link,
+            delay_seconds,
+            review_progress_bar,
+            review_progress_text
+        )
 
-            df = df.drop_duplicates(subset=["review_id"])
-            saved_count = save_reviews(
-             df=df,
-             source="Ulta",
-             product_name=product_name,
-             product_url=link
-            )
-
-            excel_file = create_excel_file(df)
-            file_name = f"{product_name}.xlsx"
-
-            all_excel_files.append((file_name, excel_file))
-
+        if df is None or df.empty:
             results_summary.append({
                 "Product": product_name,
                 "Source": source,
-                "Status": "Complete",
-                "Reviews": len(df),
-                "New Saved": saved_count
+                "Status": "No reviews found",
+                "Reviews": 0,
+                "New Saved": 0
             })
+            continue
 
-            if show_preview:
-                st.subheader(product_name)
-                st.dataframe(df.head(10))
-
-            product_progress_bar.progress(index / len(links))
-
-        product_progress_text.write("Finished.")
-        review_progress_text.empty()
-
-        summary_df = pd.DataFrame(results_summary)
-
-        st.success("Scraping complete.")
-        st.dataframe(summary_df)
-
-        if len(all_excel_files) == 1:
-            file_name, excel_file = all_excel_files[0]
-
-            st.download_button(
-                label="Download Excel File",
-                data=excel_file,
-                file_name=file_name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-
-        elif len(all_excel_files) > 1:
-            zip_buffer = BytesIO()
-
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                for file_name, excel_file in all_excel_files:
-                    zip_file.writestr(file_name, excel_file.getvalue())
-
-            zip_buffer.seek(0)
-
-            st.download_button(
-                label="Download ZIP File",
-                data=zip_buffer,
-                file_name="review_exports.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
+        if "review_id" in df.columns:
+            df = df.drop_duplicates(subset=["review_id"])
         else:
-            st.warning("No Excel files were created.")
+            df = df.drop_duplicates()
+
+        saved_count = save_reviews(
+            df=df,
+            source=source,
+            product_name=product_name,
+            product_url=link
+        )
+
+        excel_file = create_excel_file(df)
+        file_name = f"{product_name}.xlsx"
+
+        all_excel_files.append((file_name, excel_file))
+
+        results_summary.append({
+            "Product": product_name,
+            "Source": source,
+            "Status": "Complete",
+            "Reviews": len(df),
+            "New Saved": saved_count
+        })
+
+        if show_preview:
+            st.subheader(product_name)
+            st.dataframe(df.head(10))
+
+        product_progress_bar.progress(index / len(links))
+
+    product_progress_text.write("Finished.")
+    review_progress_text.empty()
+
+    summary_df = pd.DataFrame(results_summary)
+
+    st.success("Scraping complete.")
+    st.dataframe(summary_df)
+
+    if len(all_excel_files) == 1:
+        file_name, excel_file = all_excel_files[0]
+
+        st.download_button(
+            label="Download Excel File",
+            data=excel_file,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+    elif len(all_excel_files) > 1:
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for file_name, excel_file in all_excel_files:
+                zip_file.writestr(file_name, excel_file.getvalue())
+
+        zip_buffer.seek(0)
+
+        st.download_button(
+            label="Download ZIP File",
+            data=zip_buffer,
+            file_name="review_exports.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+
+    else:
+        st.warning("No Excel files were created.")
