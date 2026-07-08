@@ -9,23 +9,35 @@ YOTPO_STORE_ID = "eEgpPzBZusAXrXgLzWNhAJ6yM7P3XEnyRrdRAovz"
 from bs4 import BeautifulSoup
 
 def extract_yotpo_product_id(url):
+    # If user pasted the Yotpo API URL directly
+    match = re.search(r"/product/(\d+)/reviews", url)
+    if match:
+        return match.group(1)
+
     response = requests.get(
         url,
-        headers={
-            "User-Agent": "Mozilla/5.0"
-        },
+        headers={"User-Agent": "Mozilla/5.0"},
         timeout=30
     )
 
     if response.status_code != 200:
         raise ValueError("Couldn't open product page.")
 
-    match = re.search(r'"rid"\s*:\s*"?(\\d+)"?', response.text)
+    html = response.text
 
-    if not match:
-        raise ValueError("Couldn't locate Yotpo product ID.")
+    patterns = [
+        r'"rid"\s*:\s*(\d+)',
+        r'\\"rid\\"\s*:\s*(\d+)',
+        r'"rid"\s*:\s*"(\d+)"',
+        r'\\"rid\\"\s*:\s*\\"(\d+)\\"'
+    ]
 
-    return match.group(1)
+    for pattern in patterns:
+        match = re.search(pattern, html)
+        if match:
+            return match.group(1)
+
+    raise ValueError("Couldn't locate Yotpo product ID.")
 
 
 def scrape_brand_product(
