@@ -2,6 +2,10 @@ import re
 import time
 import requests
 import pandas as pd
+from io import BytesIO
+
+
+SEPHORA_PASSKEY = "calXm2DyQVjcCy9agq85vmTJv5ELuuBCF2sdg4BnJzJus"
 
 
 def extract_sephora_product_id(url):
@@ -13,77 +17,95 @@ def extract_sephora_product_id(url):
 
 def scrape_sephora_product(
     url,
-    delay_seconds,
+    delay_seconds=0.25,
     review_progress_bar=None,
-    review_progress_text=None,
-    api_key=None
+    review_progress_text=None
 ):
-    if not api_key:
-        raise ValueError("Missing Sephora API key.")
-
     product_id = extract_sephora_product_id(url)
 
     if not product_id:
-        raise ValueError("Could not find Sephora product ID in link.")
+        raise ValueError("Could not find Sephora product ID in URL.")
 
     all_reviews = []
-    page = 1
     limit = 100
-
-    headers = {
-        "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "real-time-sephora-api.p.rapidapi.com"
-    }
+    offset = 0
 
     while True:
         if review_progress_text:
-            review_progress_text.write(f"Scraping Sephora reviews page {page}...")
-
-        endpoint = "https://real-time-sephora-api.p.rapidapi.com/product-reviews"
+            review_progress_text.write(f"Scraping Sephora reviews {offset + 1} to {offset + limit}...")
 
         params = {
-            "product_id": product_id,
-            "page": page,
-            "limit": limit
+            "Filter": [
+                "contentlocale:en*",
+                f"ProductId:{product_id}"
+            ],
+            "Sort": "SubmissionTime:desc",
+            "Limit": limit,
+            "Offset": offset,
+            "Include": "Products,Comments",
+            "Stats": "Reviews",
+            "passkey": SEPHORA_PASSKEY,
+            "apiversion": "5.4",
+            "Locale": "en_US"
         }
 
-        response = requests.get(endpoint, headers=headers, params=params, timeout=30)
+        response = requests.get(
+            "https://api.bazaarvoice.com/data/reviews.json",
+            params=params,
+            timeout=30
+        )
 
         if response.status_code != 200:
-            raise ValueError(f"Sephora request failed: {response.status_code} - {response.text[:300]}")
+            raise ValueError(f"Sephora request failed: {response.status_code}")
 
         data = response.json()
-
-        reviews = (
-            data.get("data", {}).get("reviews")
-            or data.get("reviews")
-            or []
-        )
+        reviews = data.get("Results", [])
 
         if not reviews:
             break
 
+        product_info = {}
+        products = data.get("Includes", {}).get("Products", {})
+
+        if products:
+            first_product = list(products.values())[0]
+            product_info = {
+                "brand": first_product.get("Brand", {}).get("Name"),
+                "product_name": first_product.get("Name"),
+                "product_id": product_id,
+                "product_url": url
+            }
+
         for review in reviews:
+            context = review.get("ContextDataValues", {}) or {}
+
             all_reviews.append({
                 "source": "Sephora",
+                "brand": product_info.get("brand"),
+                "product_name": product_info.get("product_name"),
                 "product_url": url,
                 "product_id": product_id,
-                "review_id": review.get("review_id") or review.get("id"),
-                "rating": review.get("rating"),
-                "title": review.get("title"),
-                "review_text": review.get("review_text") or review.get("text") or review.get("review"),
-                "reviewer": review.get("nickname") or review.get("author"),
-                "review_date": review.get("submission_time") or review.get("date"),
-                "verified_purchase": review.get("is_verified_buyer"),
-                "recommended": review.get("is_recommended"),
-                "skin_type": review.get("skin_type"),
-                "skin_concerns": review.get("skin_concerns")
+                "review_id": review.get("Id"),
+                "rating": review.get("Rating"),
+                "title": review.get("Title"),
+                "review_text": review.get("ReviewText"),
+                "reviewer": review.get("UserNickname"),
+                "review_date": review.get("SubmissionTime"),
+                "recommended": review.get("IsRecommended"),
+                "verified_purchase": review.get("Badges", {}).get("verifiedPurchaser", {}).get("ContentType"),
+                "skin_type": context.get("skinType", {}).get("Value"),
+                "skin_concerns": context.get("skinConcerns", {}).get("Value"),
+                "age_range": context.get("ageRange", {}).get("Value"),
+                "incentivized": context.get("IncentivizedReview", {}).get("Value"),
+                "helpfulness": review.get("TotalPositiveFeedbackCount"),
+                "not_helpful": review.get("TotalNegativeFeedbackCount")
             })
 
-        if review_progress_bar:
-            review_progress_bar.progress(min(page / 20, 1.0))
+        offset += limit
 
-        page += 1
+        if review_progress_bar:
+            review_progress_bar.progress(min(offset / 1000, 1.0))
+
         time.sleep(delay_seconds)
 
     df = pd.DataFrame(all_reviews)
