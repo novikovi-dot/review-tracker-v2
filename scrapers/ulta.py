@@ -75,9 +75,9 @@ def make_request(url, params):
 
     return None
 
-
 def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_progress_text=None):
     all_reviews = []
+    official_recommendation_rate = ""
 
     base_url = "https://display.powerreviews.com"
     next_url = f"{base_url}/m/6406/l/en_US/product/{product_id}/reviews"
@@ -103,6 +103,12 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
         results = data.get("results", [])
         if not results:
             break
+
+        rollup = results[0].get("rollup", {})
+        recommended_ratio = rollup.get("recommended_ratio")
+
+        if recommended_ratio not in [None, ""]:
+            official_recommendation_rate = f"{round(float(recommended_ratio) * 100)}%"
 
         reviews = results[0].get("reviews", [])
         if not reviews:
@@ -149,7 +155,9 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
 
         time.sleep(delay_seconds)
 
-    return pd.DataFrame(all_reviews)
+    df = pd.DataFrame(all_reviews)
+    df.attrs["official_recommendation_rate"] = official_recommendation_rate
+    return df
 
 def create_excel_file(df):
     output = BytesIO()
