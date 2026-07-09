@@ -93,19 +93,7 @@ def summarize_retailer(df, source, product_name, product_url):
         avg_rating = ""
         five_star = four_star = three_star = two_star = one_star = 0
 
-    recommended_rate = ""
-    if "recommended" in df.columns:
-        recommended = df["recommended"].astype(str).str.lower()
-        yes_count = recommended.isin(["true", "yes", "1"]).sum()
-        if len(df) > 0:
-            recommended_rate = f"{round(yes_count / len(df) * 100, 1)}%"
-
-    verified_rate = ""
-    if "verified_purchase" in df.columns:
-        verified = df["verified_purchase"].astype(str).str.lower()
-        yes_count = verified.isin(["true", "yes", "1", "verifiedpurchaser"]).sum()
-        if len(df) > 0:
-            verified_rate = f"{round(yes_count / len(df) * 100, 1)}%"
+    recommendation_rate = recommendation_rate or calculated_value
 
     return pd.DataFrame({
         "Metric": [
