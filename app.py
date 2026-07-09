@@ -9,8 +9,8 @@ from scrapers.ulta import (
     clean_filename
 )
 
-scrape_sephora_product = None
-scrape_brand_product = None
+from scrapers.sephora import scrape_sephora_product
+from scrapers.brand import scrape_brand_product
 
 def save_reviews(df, source, product_name, product_url):
     return 0
