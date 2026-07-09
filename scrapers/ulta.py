@@ -154,55 +154,12 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
 def create_excel_file(df):
     output = BytesIO()
 
-    rating_summary = df["rating"].value_counts().sort_index().reset_index()
-    rating_summary.columns = ["Rating", "Review Count"]
-    rating_summary["Percentage"] = rating_summary["Review Count"] / len(df)
-
-    summary = pd.DataFrame({
-        "Metric": [
-            "Total Reviews",
-            "Average Rating",
-            "Five Star Reviews",
-            "Four Star Reviews",
-            "Three Star Reviews",
-            "Two Star Reviews",
-            "One Star Reviews"
-        ],
-        "Value": [
-            len(df),
-            round(df["rating"].mean(), 2),
-            int((df["rating"] == 5).sum()),
-            int((df["rating"] == 4).sum()),
-            int((df["rating"] == 3).sum()),
-            int((df["rating"] == 2).sum()),
-            int((df["rating"] == 1).sum())
-        ]
-    })
-
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        summary.to_excel(writer, index=False, sheet_name="Summary")
-        df.to_excel(writer, index=False, sheet_name="All Reviews")
-        rating_summary.to_excel(writer, index=False, sheet_name="Rating Breakdown")
+        df.to_excel(writer, index=False, sheet_name="Reviews")
 
-        for sheet_name in writer.sheets:
-            worksheet = writer.sheets[sheet_name]
-            worksheet.freeze_panes = "A2"
-            worksheet.auto_filter.ref = worksheet.dimensions
-
-            for column_cells in worksheet.columns:
-                max_length = 0
-                column_letter = column_cells[0].column_letter
-
-                for cell in column_cells:
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
-
-                    cell.alignment = cell.alignment.copy(
-                        wrap_text=True,
-                        vertical="top"
-                    )
-
-                worksheet.column_dimensions[column_letter].width = min(max_length + 2, 70)
+        worksheet = writer.sheets["Reviews"]
+        worksheet.freeze_panes = "A2"
+        worksheet.auto_filter.ref = worksheet.dimensions
 
     output.seek(0)
     return output
