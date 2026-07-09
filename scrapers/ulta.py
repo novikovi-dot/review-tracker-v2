@@ -153,14 +153,7 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
 
 def create_excel_file(df):
     output = BytesIO()
-
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Reviews")
-
-        worksheet = writer.sheets["Reviews"]
-        worksheet.freeze_panes = "A2"
-        worksheet.auto_filter.ref = worksheet.dimensions
-
+    df.to_excel(output, index=False, engine="openpyxl")
     output.seek(0)
     return output
 
