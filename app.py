@@ -93,17 +93,17 @@ def summarize_retailer(df, source, product_name, product_url):
         avg_rating = ""
         five_star = four_star = three_star = two_star = one_star = 0
 
-recommended_rate = ""
+    recommended_rate = ""
 
-if "recommended" in df.columns:
-    recommended = df["recommended"]
+    if "recommended" in df.columns:
+        recommended = df["recommended"]
 
-    valid_recommendations = recommended.notna()
-    yes_count = recommended[valid_recommendations].eq(True).sum()
-    total_count = valid_recommendations.sum()
+        valid_recommendations = recommended.notna()
+        yes_count = recommended[valid_recommendations].eq(True).sum()
+        total_count = valid_recommendations.sum()
 
-    if total_count > 0:
-        recommended_rate = f"{round(yes_count / total_count * 100)}%"
+        if total_count > 0:
+             recommended_rate = f"{round(yes_count / total_count * 100)}%"
     
     return pd.DataFrame({
         "Metric": [
