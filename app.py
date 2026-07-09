@@ -9,11 +9,11 @@ from scrapers.ulta import (
     clean_filename
 )
 
-from scrapers.sephora import scrape_sephora_product
+scrape_sephora_product = None
+scrape_brand_product = None
 
-from scrapers.brand import scrape_brand_product
-
-from database.db import save_reviews
+def save_reviews(df, source, product_name, product_url):
+    return 0
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
 
