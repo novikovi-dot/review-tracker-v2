@@ -3,6 +3,8 @@ import pandas as pd
 import zipfile
 from io import BytesIO
 
+from products import PRODUCTS
+
 from scrapers.ulta import (
     scrape_product as scrape_ulta_product,
     create_excel_file,
@@ -12,8 +14,10 @@ from scrapers.ulta import (
 from scrapers.sephora import scrape_sephora_product
 from scrapers.brand import scrape_brand_product
 
+
 def save_reviews(df, source, product_name, product_url):
     return 0
+
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
 
@@ -54,7 +58,7 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
             delay_seconds,
             review_progress_bar,
             review_progress_text
-       )
+        )
 
     elif source == "Brand Website":
         return scrape_brand_product(
@@ -62,7 +66,7 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
             delay_seconds,
             review_progress_bar,
             review_progress_text
-       )
+        )
 
     else:
         st.error("Unknown source selected.")
@@ -72,24 +76,30 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
 check_password()
 
 st.title("⭐ Beauty Review Tracker")
-st.write("Paste one or more product links below. One link per line.")
+st.write("Select a product and choose which retailer platforms to include.")
 
-source = st.selectbox(
-    "Source",
-    ["Ulta", "Sephora", "Brand Website"]
+product_names = list(PRODUCTS.keys())
+
+selected_product = st.selectbox(
+    "Product",
+    product_names
 )
 
-placeholder_by_source = {
-    "Ulta": "https://www.ulta.com/p/...",
-    "Sephora": "https://www.sephora.com/product/...",
-    "Brand Website": "https://olehenriksen.com/products/..."
-}
-
-product_links_text = st.text_area(
-    "Product links",
-    height=160,
-    placeholder=placeholder_by_source[source]
+selected_platforms = st.multiselect(
+    "Platforms",
+    ["Ulta", "Sephora", "Brand Website"],
+    default=["Ulta", "Sephora", "Brand Website"]
 )
+
+product_info = PRODUCTS[selected_product]
+
+with st.expander("Selected product links"):
+    for platform in ["Ulta", "Sephora", "Brand Website"]:
+        link = product_info.get(platform, "")
+        if link:
+            st.write(f"**{platform}:** {link}")
+        else:
+            st.write(f"**{platform}:** No link saved")
 
 with st.expander("Settings"):
     delay_seconds = st.slider(
@@ -103,11 +113,17 @@ with st.expander("Settings"):
     show_preview = st.checkbox("Show preview table", value=True)
 
 
-if st.button("Scrape Reviews", use_container_width=True):
-    links = [link.strip() for link in product_links_text.splitlines() if link.strip()]
+if st.button("Generate Report", use_container_width=True):
+    links = []
+
+    for platform in selected_platforms:
+        link = product_info.get(platform)
+
+        if link:
+            links.append((platform, link))
 
     if not links:
-        st.error("Please paste at least one product link.")
+        st.error("Please select at least one platform with a saved link.")
         st.stop()
 
     all_excel_files = []
@@ -119,14 +135,12 @@ if st.button("Scrape Reviews", use_container_width=True):
 
     results_summary = []
 
-    for index, link in enumerate(links, start=1):
-        product_progress_text.write(f"Product {index} of {len(links)}")
+    for index, (source, link) in enumerate(links, start=1):
+        product_progress_text.write(f"Platform {index} of {len(links)}: {source}")
         product_progress_bar.progress((index - 1) / len(links))
 
         review_progress_bar.progress(0)
         review_progress_text.write("Finding reviews...")
-
-        product_name = clean_filename(link)
 
         df = scrape_selected_source(
             source,
@@ -138,7 +152,7 @@ if st.button("Scrape Reviews", use_container_width=True):
 
         if df is None or df.empty:
             results_summary.append({
-                "Product": product_name,
+                "Product": selected_product,
                 "Source": source,
                 "Status": "No reviews found",
                 "Reviews": 0,
@@ -154,17 +168,20 @@ if st.button("Scrape Reviews", use_container_width=True):
         saved_count = save_reviews(
             df=df,
             source=source,
-            product_name=product_name,
+            product_name=selected_product,
             product_url=link
         )
 
         excel_file = create_excel_file(df)
-        file_name = f"{product_name}.xlsx"
+        safe_product_name = clean_filename(selected_product)
+        safe_source_name = clean_filename(source)
+
+        file_name = f"{safe_product_name}_{safe_source_name}.xlsx"
 
         all_excel_files.append((file_name, excel_file))
 
         results_summary.append({
-            "Product": product_name,
+            "Product": selected_product,
             "Source": source,
             "Status": "Complete",
             "Reviews": len(df),
@@ -172,7 +189,7 @@ if st.button("Scrape Reviews", use_container_width=True):
         })
 
         if show_preview:
-            st.subheader(product_name)
+            st.subheader(f"{selected_product} — {source}")
             st.dataframe(df.head(10))
 
         product_progress_bar.progress(index / len(links))
@@ -182,7 +199,7 @@ if st.button("Scrape Reviews", use_container_width=True):
 
     summary_df = pd.DataFrame(results_summary)
 
-    st.success("Scraping complete.")
+    st.success("Report generation complete.")
     st.dataframe(summary_df)
 
     if len(all_excel_files) == 1:
@@ -205,10 +222,12 @@ if st.button("Scrape Reviews", use_container_width=True):
 
         zip_buffer.seek(0)
 
+        safe_product_name = clean_filename(selected_product)
+
         st.download_button(
             label="Download ZIP File",
             data=zip_buffer,
-            file_name="review_exports.zip",
+            file_name=f"{safe_product_name}_retailer_reports.zip",
             mime="application/zip",
             use_container_width=True
         )
