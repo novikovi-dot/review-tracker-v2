@@ -93,9 +93,9 @@ def summarize_retailer(df, source, product_name, product_url):
         avg_rating = ""
         five_star = four_star = three_star = two_star = one_star = 0
 
-    recommended_rate = df.attrs.get("official_recommendation_rate", "")
+    recommended_rate = "N/A" if source == "Brand Website" else df.attrs.get("official_recommendation_rate", "")
 
-    if not recommended_rate and "recommended" in df.columns:
+    if source != "Brand Website" and not recommended_rate and "recommended" in df.columns:
         recommended = df["recommended"]
 
         valid_recommendations = recommended.notna()
