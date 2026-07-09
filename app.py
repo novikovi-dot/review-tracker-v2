@@ -1,13 +1,11 @@
 import streamlit as st
 import pandas as pd
-import zipfile
 from io import BytesIO
 
 from products import PRODUCTS
 
 from scrapers.ulta import (
     scrape_product as scrape_ulta_product,
-    create_excel_file,
     clean_filename
 )
 
@@ -52,7 +50,7 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
         )
         return df
 
-    elif source == "Sephora":
+    if source == "Sephora":
         return scrape_sephora_product(
             link,
             delay_seconds,
@@ -60,7 +58,7 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
             review_progress_text
         )
 
-    elif source == "Brand Website":
+    if source == "Brand Website":
         return scrape_brand_product(
             link,
             delay_seconds,
@@ -68,9 +66,169 @@ def scrape_selected_source(source, link, delay_seconds, review_progress_bar, rev
             review_progress_text
         )
 
+    st.error("Unknown source selected.")
+    return None
+
+
+def get_rating_column(df):
+    if "rating" in df.columns:
+        return "rating"
+    if "Rating" in df.columns:
+        return "Rating"
+    return None
+
+
+def summarize_retailer(df, source, product_name, product_url):
+    rating_col = get_rating_column(df)
+
+    if rating_col:
+        ratings = pd.to_numeric(df[rating_col], errors="coerce")
+        avg_rating = round(ratings.mean(), 2) if ratings.notna().any() else ""
+        five_star = int((ratings == 5).sum())
+        four_star = int((ratings == 4).sum())
+        three_star = int((ratings == 3).sum())
+        two_star = int((ratings == 2).sum())
+        one_star = int((ratings == 1).sum())
     else:
-        st.error("Unknown source selected.")
-        return None
+        avg_rating = ""
+        five_star = four_star = three_star = two_star = one_star = 0
+
+    recommended_rate = ""
+    if "recommended" in df.columns:
+        recommended = df["recommended"].astype(str).str.lower()
+        yes_count = recommended.isin(["true", "yes", "1"]).sum()
+        if len(df) > 0:
+            recommended_rate = f"{round(yes_count / len(df) * 100, 1)}%"
+
+    verified_rate = ""
+    if "verified_purchase" in df.columns:
+        verified = df["verified_purchase"].astype(str).str.lower()
+        yes_count = verified.isin(["true", "yes", "1", "verifiedpurchaser"]).sum()
+        if len(df) > 0:
+            verified_rate = f"{round(yes_count / len(df) * 100, 1)}%"
+
+    return pd.DataFrame({
+        "Metric": [
+            "Product",
+            "Retailer",
+            "Product URL",
+            "Total Reviews",
+            "Average Rating",
+            "5 Star Reviews",
+            "4 Star Reviews",
+            "3 Star Reviews",
+            "2 Star Reviews",
+            "1 Star Reviews",
+            "Recommendation Rate",
+            "Verified Purchase Rate"
+        ],
+        "Value": [
+            product_name,
+            source,
+            product_url,
+            len(df),
+            avg_rating,
+            five_star,
+            four_star,
+            three_star,
+            two_star,
+            one_star,
+            recommended_rate,
+            verified_rate
+        ]
+    })
+
+
+def create_rating_breakdown(df):
+    rating_col = get_rating_column(df)
+
+    if not rating_col:
+        return pd.DataFrame(columns=["Rating", "Review Count", "Percentage"])
+
+    ratings = pd.to_numeric(df[rating_col], errors="coerce")
+
+    breakdown = (
+        ratings
+        .value_counts()
+        .sort_index(ascending=False)
+        .reset_index()
+    )
+
+    breakdown.columns = ["Rating", "Review Count"]
+
+    if len(df) > 0:
+        breakdown["Percentage"] = breakdown["Review Count"] / len(df)
+
+    return breakdown
+
+
+def create_combined_excel_report(retailer_data, retailer_links, product_name):
+    output = BytesIO()
+
+    comparison_rows = []
+
+    for source, df in retailer_data.items():
+        rating_col = get_rating_column(df)
+
+        if rating_col:
+            ratings = pd.to_numeric(df[rating_col], errors="coerce")
+            avg_rating = round(ratings.mean(), 2) if ratings.notna().any() else ""
+        else:
+            avg_rating = ""
+
+        comparison_rows.append({
+            "Product": product_name,
+            "Retailer": source,
+            "Reviews": len(df),
+            "Average Rating": avg_rating,
+            "Product URL": retailer_links.get(source, "")
+        })
+
+    comparison_df = pd.DataFrame(comparison_rows)
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        comparison_df.to_excel(writer, index=False, sheet_name="Retailer Comparison")
+
+        for source, df in retailer_data.items():
+            summary_df = summarize_retailer(
+                df=df,
+                source=source,
+                product_name=product_name,
+                product_url=retailer_links.get(source, "")
+            )
+
+            rating_breakdown_df = create_rating_breakdown(df)
+
+            summary_sheet = f"{source} Summary"[:31]
+            reviews_sheet = f"{source} Reviews"[:31]
+            ratings_sheet = f"{source} Ratings"[:31]
+
+            summary_df.to_excel(writer, index=False, sheet_name=summary_sheet)
+            rating_breakdown_df.to_excel(writer, index=False, sheet_name=ratings_sheet)
+            df.to_excel(writer, index=False, sheet_name=reviews_sheet)
+
+        for sheet_name in writer.sheets:
+            worksheet = writer.sheets[sheet_name]
+            worksheet.freeze_panes = "A2"
+            worksheet.auto_filter.ref = worksheet.dimensions
+
+            for column_cells in worksheet.columns:
+                max_length = 0
+                column_letter = column_cells[0].column_letter
+
+                for cell in column_cells:
+                    if cell.value is not None:
+                        max_length = max(max_length, len(str(cell.value)))
+
+                    cell.alignment = cell.alignment.copy(
+                        wrap_text=True,
+                        vertical="top"
+                    )
+
+                worksheet.column_dimensions[column_letter].width = min(max_length + 2, 70)
+
+    output.seek(0)
+    return output
 
 
 check_password()
@@ -85,28 +243,49 @@ selected_product = st.selectbox(
     product_names
 )
 
+product_info = PRODUCTS[selected_product]
+
+platforms = ["Ulta", "Sephora", "Brand Website"]
+
+for platform in platforms:
+    key = f"platform_{platform}"
+    if key not in st.session_state:
+        st.session_state[key] = True
+
+button_col1, button_col2 = st.columns(2)
+
+with button_col1:
+    if st.button("Select All", use_container_width=True):
+        for platform in platforms:
+            st.session_state[f"platform_{platform}"] = True
+        st.rerun()
+
+with button_col2:
+    if st.button("Clear All", use_container_width=True):
+        for platform in platforms:
+            st.session_state[f"platform_{platform}"] = False
+        st.rerun()
+
 st.write("Platforms")
 
 col1, col2, col3 = st.columns(3)
 
-selected_platforms = []
-
 with col1:
-    if st.checkbox("Ulta", value=True):
-        selected_platforms.append("Ulta")
+    st.checkbox("Ulta", key="platform_Ulta")
 
 with col2:
-    if st.checkbox("Sephora", value=True):
-        selected_platforms.append("Sephora")
+    st.checkbox("Sephora", key="platform_Sephora")
 
 with col3:
-    if st.checkbox("Brand Website", value=True):
-        selected_platforms.append("Brand Website")
+    st.checkbox("Brand Website", key="platform_Brand Website")
 
-product_info = PRODUCTS[selected_product]
+selected_platforms = [
+    platform for platform in platforms
+    if st.session_state[f"platform_{platform}"]
+]
 
 with st.expander("Selected product links"):
-    for platform in ["Ulta", "Sephora", "Brand Website"]:
+    for platform in platforms:
         link = product_info.get(platform, "")
         if link:
             st.write(f"**{platform}:** {link}")
@@ -125,7 +304,7 @@ with st.expander("Settings"):
     show_preview = st.checkbox("Show preview table", value=True)
 
 
-if st.button("Generate Report", use_container_width=True):
+if st.button("Generate Product Report", use_container_width=True):
     links = []
 
     for platform in selected_platforms:
@@ -138,14 +317,14 @@ if st.button("Generate Report", use_container_width=True):
         st.error("Please select at least one platform with a saved link.")
         st.stop()
 
-    all_excel_files = []
-
     product_progress_bar = st.progress(0)
     product_progress_text = st.empty()
     review_progress_bar = st.progress(0)
     review_progress_text = st.empty()
 
     results_summary = []
+    retailer_data = {}
+    retailer_links = {}
 
     for index, (source, link) in enumerate(links, start=1):
         product_progress_text.write(f"Platform {index} of {len(links)}: {source}")
@@ -167,8 +346,7 @@ if st.button("Generate Report", use_container_width=True):
                 "Product": selected_product,
                 "Source": source,
                 "Status": "No reviews found",
-                "Reviews": 0,
-                "New Saved": 0
+                "Reviews": 0
             })
             continue
 
@@ -177,27 +355,21 @@ if st.button("Generate Report", use_container_width=True):
         else:
             df = df.drop_duplicates()
 
-        saved_count = save_reviews(
+        save_reviews(
             df=df,
             source=source,
             product_name=selected_product,
             product_url=link
         )
 
-        excel_file = create_excel_file(df)
-        safe_product_name = clean_filename(selected_product)
-        safe_source_name = clean_filename(source)
-
-        file_name = f"{safe_product_name}_{safe_source_name}.xlsx"
-
-        all_excel_files.append((file_name, excel_file))
+        retailer_data[source] = df
+        retailer_links[source] = link
 
         results_summary.append({
             "Product": selected_product,
             "Source": source,
             "Status": "Complete",
-            "Reviews": len(df),
-            "New Saved": saved_count
+            "Reviews": len(df)
         })
 
         if show_preview:
@@ -214,35 +386,21 @@ if st.button("Generate Report", use_container_width=True):
     st.success("Report generation complete.")
     st.dataframe(summary_df)
 
-    if len(all_excel_files) == 1:
-        file_name, excel_file = all_excel_files[0]
-
-        st.download_button(
-            label="Download Excel File",
-            data=excel_file,
-            file_name=file_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+    if retailer_data:
+        report_file = create_combined_excel_report(
+            retailer_data=retailer_data,
+            retailer_links=retailer_links,
+            product_name=selected_product
         )
-
-    elif len(all_excel_files) > 1:
-        zip_buffer = BytesIO()
-
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for file_name, excel_file in all_excel_files:
-                zip_file.writestr(file_name, excel_file.getvalue())
-
-        zip_buffer.seek(0)
 
         safe_product_name = clean_filename(selected_product)
 
         st.download_button(
-            label="Download ZIP File",
-            data=zip_buffer,
-            file_name=f"{safe_product_name}_retailer_reports.zip",
-            mime="application/zip",
+            label="Download Product Report",
+            data=report_file,
+            file_name=f"{safe_product_name}_Retailer_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-
     else:
-        st.warning("No Excel files were created.")
+        st.warning("No Excel file was created.")
