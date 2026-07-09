@@ -93,7 +93,7 @@ def summarize_retailer(df, source, product_name, product_url):
         avg_rating = ""
         five_star = four_star = three_star = two_star = one_star = 0
 
-    recommended_rate = ""
+recommended_rate = ""
 
 if "recommended" in df.columns:
     recommended = df["recommended"]
