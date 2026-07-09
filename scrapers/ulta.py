@@ -153,7 +153,72 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
 
 def create_excel_file(df):
     output = BytesIO()
-    df.to_excel(output, index=False, engine="openpyxl")
+    df = df.copy()
+
+    if "rating" in df.columns:
+        df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+
+    total_reviews = len(df)
+    avg_rating = round(df["rating"].mean(), 2) if "rating" in df.columns else ""
+
+    summary_df = pd.DataFrame({
+        "Metric": [
+            "Total Reviews",
+            "Average Rating",
+            "5 Star Reviews",
+            "4 Star Reviews",
+            "3 Star Reviews",
+            "2 Star Reviews",
+            "1 Star Reviews"
+        ],
+        "Value": [
+            total_reviews,
+            avg_rating,
+            int((df["rating"] == 5).sum()) if "rating" in df.columns else 0,
+            int((df["rating"] == 4).sum()) if "rating" in df.columns else 0,
+            int((df["rating"] == 3).sum()) if "rating" in df.columns else 0,
+            int((df["rating"] == 2).sum()) if "rating" in df.columns else 0,
+            int((df["rating"] == 1).sum()) if "rating" in df.columns else 0
+        ]
+    })
+
+    if "rating" in df.columns:
+        rating_breakdown = (
+            df["rating"]
+            .value_counts()
+            .sort_index(ascending=False)
+            .reset_index()
+        )
+        rating_breakdown.columns = ["Rating", "Review Count"]
+        rating_breakdown["Percentage"] = rating_breakdown["Review Count"] / total_reviews
+    else:
+        rating_breakdown = pd.DataFrame(columns=["Rating", "Review Count", "Percentage"])
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        summary_df.to_excel(writer, index=False, sheet_name="Summary")
+        df.to_excel(writer, index=False, sheet_name="All Reviews")
+        rating_breakdown.to_excel(writer, index=False, sheet_name="Rating Breakdown")
+
+        for sheet_name in writer.sheets:
+            worksheet = writer.sheets[sheet_name]
+            worksheet.freeze_panes = "A2"
+            worksheet.auto_filter.ref = worksheet.dimensions
+
+            for column_cells in worksheet.columns:
+                max_length = 0
+                column_letter = column_cells[0].column_letter
+
+                for cell in column_cells:
+                    if cell.value is not None:
+                        max_length = max(max_length, len(str(cell.value)))
+
+                    cell.alignment = cell.alignment.copy(
+                        wrap_text=True,
+                        vertical="top"
+                    )
+
+                worksheet.column_dimensions[column_letter].width = min(max_length + 2, 70)
+
     output.seek(0)
     return output
 
