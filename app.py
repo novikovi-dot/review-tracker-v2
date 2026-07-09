@@ -93,8 +93,8 @@ def summarize_retailer(df, source, product_name, product_url):
         avg_rating = ""
         five_star = four_star = three_star = two_star = one_star = 0
 
-    recommendation_rate = recommendation_rate or calculated_value
-
+    recommended_rate = ""
+    
     return pd.DataFrame({
         "Metric": [
             "Product",
@@ -107,8 +107,7 @@ def summarize_retailer(df, source, product_name, product_url):
             "3 Star Reviews",
             "2 Star Reviews",
             "1 Star Reviews",
-            "Recommendation Rate",
-            "Verified Purchase Rate"
+            "Recommendation Rate"
         ],
         "Value": [
             product_name,
@@ -121,8 +120,7 @@ def summarize_retailer(df, source, product_name, product_url):
             three_star,
             two_star,
             one_star,
-            recommended_rate,
-            verified_rate
+            recommended_rate
         ]
     })
 
