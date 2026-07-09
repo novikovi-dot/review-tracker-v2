@@ -85,11 +85,23 @@ selected_product = st.selectbox(
     product_names
 )
 
-selected_platforms = st.multiselect(
-    "Platforms",
-    ["Ulta", "Sephora", "Brand Website"],
-    default=["Ulta", "Sephora", "Brand Website"]
-)
+st.write("Platforms")
+
+col1, col2, col3 = st.columns(3)
+
+selected_platforms = []
+
+with col1:
+    if st.checkbox("Ulta", value=True):
+        selected_platforms.append("Ulta")
+
+with col2:
+    if st.checkbox("Sephora", value=True):
+        selected_platforms.append("Sephora")
+
+with col3:
+    if st.checkbox("Brand Website", value=True):
+        selected_platforms.append("Brand Website")
 
 product_info = PRODUCTS[selected_product]
 
