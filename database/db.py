@@ -157,13 +157,11 @@ def build_review_record(
         "last_seen_at": datetime.utcnow().isoformat()
     }
 
-
 def save_reviews(df, source, product_name, product_url):
     if df is None or df.empty:
-        return 0
+        return 0, pd.DataFrame()
 
     client = get_supabase_client()
-
     records = []
 
     for _, row in df.iterrows():
@@ -180,17 +178,18 @@ def save_reviews(df, source, product_name, product_url):
         records.append(record)
 
     if not records:
-        return 0
+        return 0, pd.DataFrame()
 
     existing_ids = get_existing_review_ids(
         product_name=product_name,
         source=source
     )
 
-    new_count = sum(
-        record["review_id"] not in existing_ids
+    new_records = [
+        record
         for record in records
-    )
+        if record["review_id"] not in existing_ids
+    ]
 
     batch_size = 100
 
@@ -201,8 +200,11 @@ def save_reviews(df, source, product_name, product_url):
             batch,
             on_conflict="source,product_name,review_id"
         ).execute()
-        
-    return new_count
+
+    new_reviews_df = pd.DataFrame(new_records)
+
+    return len(new_records), new_reviews_df
+
 
 def get_existing_review_ids(product_name, source):
     client = get_supabase_client()
