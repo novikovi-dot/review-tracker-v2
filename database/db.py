@@ -207,27 +207,34 @@ def save_reviews(df, source, product_name, product_url):
 def get_existing_review_ids(product_name, source):
     client = get_supabase_client()
 
-    try:
+    existing_ids = set()
+    start = 0
+    page_size = 1000
+
+    while True:
         response = (
             client.table("reviews")
             .select("review_id")
             .eq("product_name", product_name)
             .eq("source", source)
-            .limit(5)
+            .range(start, start + page_size - 1)
             .execute()
         )
 
-        return {
-            str(row["review_id"])
-            for row in (response.data or [])
-        }
+        rows = response.data or []
 
-    except Exception as error:
-        import streamlit as st
+        for row in rows:
+            review_id = row.get("review_id")
 
-        st.error("Supabase test query failed")
-        st.code(repr(error))
-        st.stop()
+            if review_id is not None:
+                existing_ids.add(str(review_id))
+
+        if len(rows) < page_size:
+            break
+
+        start += page_size
+
+    return existing_ids
 
 
 
