@@ -9,5 +9,17 @@ PRODUCTS = {
         "Ulta": "https://www.ulta.com/p/strength-peptide-barrier-boost-moisturizer-with-hyaluronic-acid-niacinamide-pimprod2042287",
         "Sephora": "https://www.sephora.com/product/ole-henriksen-strength-trainer-peptide-boost-moisturizer-P479339",
         "Brand Website": "https://olehenriksen.com/products/strength-trainer-peptide-boost-moisturizer"
+    },
+
+    "Pout Preserve Peptide Lip Treatment": {
+        "Ulta": "https://www.ulta.com/p/pout-preserve-hydrating-peptide-lip-treatment-pimprod2042281?sku=2650610",
+        "Sephora": "https://www.sephora.com/product/pout-preserve-peptide-lip-treatment-P503878",
+        "Brand Website": "https://olehenriksen.com/products/pout-preserve-peptide-lip-treatment"
+    },
+
+    "Peach Glaze 2% Niacinamide Cleanser": {
+        "Ulta": None,
+        "Sephora": "https://www.sephora.com/product/ole-henriksen-peach-glaze-2-niacinamide-cleanser-P521469",
+        "Brand Website": "https://olehenriksen.com/products/peach-glaze-2-niacinamide-cleanser"
     }
 }
