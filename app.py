@@ -347,19 +347,27 @@ if st.button("Generate Product Report", use_container_width=True):
         else:
             df = df.drop_duplicates()
 
-        saved_count = save_reviews(
-            df=df,
-            source=source,
-            product_name=selected_product,
-            product_url=link
-        )
+        try:
+            saved_count = save_reviews(
+                df=df,
+                source=source,
+                product_name=selected_product,
+                product_url=link
+            )
+            save_snapshot(
+                df=df,
+                source=source,
+                product_name=selected_product,
+                product_url=link
+            )
 
-        save_snapshot(
-            df=df,
-            source=source,
-            product_name=selected_product,
-            product_url=link
+        except Exception as error:
+            saved_count = 0
+            st.warning(
+                f"{source} reviews were scraped successfully, "
+                "but database saving failed."
         )
+        st.code(str(error))
         
         retailer_data[source] = df
         retailer_links[source] = link
