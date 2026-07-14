@@ -9,13 +9,9 @@ from scrapers.ulta import (
     clean_filename
 )
 
+from database.db import save_reviews, save_snapshot
 from scrapers.sephora import scrape_sephora_product
 from scrapers.brand import scrape_brand_product
-
-
-def save_reviews(df, source, product_name, product_url):
-    return 0
-
 
 st.set_page_config(page_title="Beauty Review Tracker", page_icon="⭐", layout="centered")
 
@@ -286,7 +282,7 @@ with st.expander("Selected product links"):
         if link:
             st.write(f"**{platform}:** {link}")
         else:
-            st.write(f"**{platform}:** No link saved")
+            st.write(f"**{platform}:** No link d")
 
 with st.expander("Settings"):
     delay_seconds = st.slider(
@@ -310,7 +306,7 @@ if st.button("Generate Product Report", use_container_width=True):
             links.append((platform, link))
 
     if not links:
-        st.error("Please select at least one platform with a saved link.")
+        st.error("Please select at least one platform with a d link.")
         st.stop()
 
     product_progress_bar = st.progress(0)
@@ -351,13 +347,20 @@ if st.button("Generate Product Report", use_container_width=True):
         else:
             df = df.drop_duplicates()
 
-        save_reviews(
+        saved_count = save_reviews(
             df=df,
             source=source,
             product_name=selected_product,
             product_url=link
         )
 
+        save_snapshot(
+            df=df,
+            source=source,
+            product_name=selected_product,
+            product_url=link
+        )
+        
         retailer_data[source] = df
         retailer_links[source] = link
 
@@ -365,7 +368,8 @@ if st.button("Generate Product Report", use_container_width=True):
             "Product": selected_product,
             "Source": source,
             "Status": "Complete",
-            "Reviews": len(df)
+            "Reviews": len(df),
+            "New Reviews": saved_count
         })
 
         if show_preview:
