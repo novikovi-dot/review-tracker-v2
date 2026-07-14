@@ -1,111 +1,328 @@
-import sqlite3
-from datetime import datetime
-from pathlib import Path
+from datetime import date, datetime
+from typing import Any
 
-DB_PATH = Path("data/reviews.db")
+import pandas as pd
+import streamlit as st
+from supabase import Client, create_client
 
 
-def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+def get_supabase_client() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_SERVICE_KEY"]
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    return create_client(url, key)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source TEXT,
-            product_name TEXT,
-            product_url TEXT,
-            matched_id TEXT,
-            review_id TEXT,
-            rating REAL,
-            review_title TEXT,
-            review_text TEXT,
-            reviewer_name TEXT,
-            location TEXT,
-            created_date TEXT,
-            helpful_votes INTEGER,
-            not_helpful_votes INTEGER,
-            hair_type TEXT,
-            scrape_date TEXT,
-            UNIQUE(source, review_id)
-        )
-    """)
 
-    conn.commit()
-    conn.close()
+def clean_value(value: Any):
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if hasattr(value, "item"):
+        return value.item()
+
+    return value
+
+
+def normalize_boolean(value):
+    if value is None or pd.isna(value):
+        return None
+
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+
+    if normalized in {
+        "true",
+        "yes",
+        "1",
+        "verified",
+        "verifiedpurchaser",
+        "verified purchaser"
+    }:
+        return True
+
+    if normalized in {"false", "no", "0"}:
+        return False
+
+    return None
+
+
+def first_available(row, column_names, default=None):
+    for column_name in column_names:
+        if column_name in row.index:
+            value = row.get(column_name)
+
+            if value is not None and not pd.isna(value):
+                return value
+
+    return default
+
+
+def build_review_record(
+    row,
+    source,
+    product_name,
+    product_url
+):
+    review_id = first_available(
+        row,
+        ["review_id", "Id", "id"]
+    )
+
+    rating = first_available(
+        row,
+        ["rating", "Rating", "score"]
+    )
+
+    review_title = first_available(
+        row,
+        ["review_title", "title", "Title"]
+    )
+
+    review_text = first_available(
+        row,
+        ["review_text", "ReviewText", "content"]
+    )
+
+    reviewer_name = first_available(
+        row,
+        ["reviewer_name", "reviewer", "UserNickname"]
+    )
+
+    review_date = first_available(
+        row,
+        ["created_date", "review_date", "SubmissionTime", "createdAt"]
+    )
+
+    helpful_votes = first_available(
+        row,
+        ["helpful_votes", "helpfulness", "TotalPositiveFeedbackCount", "votesUp"]
+    )
+
+    not_helpful_votes = first_available(
+        row,
+        [
+            "not_helpful_votes",
+            "not_helpful",
+            "TotalNegativeFeedbackCount",
+            "votesDown"
+        ]
+    )
+
+    return {
+        "product_name": product_name,
+        "product_url": product_url,
+        "source": source,
+        "review_id": str(review_id),
+        "rating": clean_value(rating),
+        "review_title": clean_value(review_title),
+        "review_text": clean_value(review_text),
+        "reviewer_name": clean_value(reviewer_name),
+        "location": clean_value(first_available(row, ["location"])),
+        "review_date": clean_value(review_date),
+        "helpful_votes": clean_value(helpful_votes),
+        "not_helpful_votes": clean_value(not_helpful_votes),
+        "hair_type": clean_value(first_available(row, ["hair_type"])),
+        "skin_type": clean_value(first_available(row, ["skin_type"])),
+        "age_range": clean_value(first_available(row, ["age_range"])),
+        "recommended": normalize_boolean(
+            first_available(row, ["recommended"])
+        ),
+        "verified_purchase": normalize_boolean(
+            first_available(row, ["verified_purchase"])
+        ),
+        "incentivized": normalize_boolean(
+            first_available(row, ["incentivized"])
+        ),
+        "sentiment": clean_value(first_available(row, ["sentiment"])),
+        "topics": clean_value(first_available(row, ["topics"])),
+        "last_seen_at": datetime.utcnow().isoformat()
+    }
 
 
 def save_reviews(df, source, product_name, product_url):
     if df is None or df.empty:
         return 0
 
-    init_db()
+    client = get_supabase_client()
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    scrape_date = datetime.now().strftime("%Y-%m-%d")
-
-    saved_count = 0
+    records = []
 
     for _, row in df.iterrows():
-        try:
-            cursor.execute("""
-                INSERT OR IGNORE INTO reviews (
-                    source,
-                    product_name,
-                    product_url,
-                    matched_id,
-                    review_id,
-                    rating,
-                    review_title,
-                    review_text,
-                    reviewer_name,
-                    location,
-                    created_date,
-                    helpful_votes,
-                    not_helpful_votes,
-                    hair_type,
-                    scrape_date
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                source,
-                product_name,
-                product_url,
-                row.get("matched_id", ""),
-                row.get("review_id", ""),
-                row.get("rating", None),
-                row.get("review_title", ""),
-                row.get("review_text", ""),
-                row.get("reviewer_name", ""),
-                row.get("location", ""),
-                row.get("created_date", ""),
-                row.get("helpful_votes", None),
-                row.get("not_helpful_votes", None),
-                row.get("hair_type", ""),
-                scrape_date
-            ))
+        record = build_review_record(
+            row=row,
+            source=source,
+            product_name=product_name,
+            product_url=product_url
+        )
 
-            if cursor.rowcount > 0:
-                saved_count += 1
-
-        except Exception:
+        if record["review_id"] in {"None", "", "nan"}:
             continue
 
-    conn.commit()
-    conn.close()
+        records.append(record)
 
-    return saved_count
+    if not records:
+        return 0
+
+    existing_ids = get_existing_review_ids(
+        product_name=product_name,
+        source=source
+    )
+
+    new_count = sum(
+        record["review_id"] not in existing_ids
+        for record in records
+    )
+
+    batch_size = 500
+
+    for start in range(0, len(records), batch_size):
+        batch = records[start:start + batch_size]
+
+        client.table("reviews").upsert(
+            batch,
+            on_conflict="source,product_name,review_id"
+        ).execute()
+
+    return new_count
 
 
-def load_all_reviews():
-    init_db()
+def get_existing_review_ids(product_name, source):
+    client = get_supabase_client()
 
-    conn = sqlite3.connect(DB_PATH)
-    df = __import__("pandas").read_sql_query("SELECT * FROM reviews", conn)
-    conn.close()
+    existing_ids = set()
+    start = 0
+    page_size = 1000
 
-    return df
+    while True:
+        response = (
+            client.table("reviews")
+            .select("review_id")
+            .eq("product_name", product_name)
+            .eq("source", source)
+            .range(start, start + page_size - 1)
+            .execute()
+        )
+
+        rows = response.data or []
+
+        for row in rows:
+            existing_ids.add(str(row["review_id"]))
+
+        if len(rows) < page_size:
+            break
+
+        start += page_size
+
+    return existing_ids
+
+
+def calculate_snapshot(df, source, product_name, product_url):
+    ratings = pd.to_numeric(
+        df.get("rating", pd.Series(dtype=float)),
+        errors="coerce"
+    )
+
+    recommendation_rate = None
+
+    if "recommended" in df.columns:
+        recommendations = df["recommended"].apply(normalize_boolean)
+        valid_recommendations = recommendations.dropna()
+
+        if not valid_recommendations.empty:
+            recommendation_rate = round(
+                valid_recommendations.mean() * 100,
+                2
+            )
+
+    verified_purchase_rate = None
+
+    if "verified_purchase" in df.columns:
+        verified = df["verified_purchase"].apply(normalize_boolean)
+        valid_verified = verified.dropna()
+
+        if not valid_verified.empty:
+            verified_purchase_rate = round(
+                valid_verified.mean() * 100,
+                2
+            )
+
+    return {
+        "product_name": product_name,
+        "source": source,
+        "scrape_date": date.today().isoformat(),
+        "product_url": product_url,
+        "total_reviews": int(len(df)),
+        "average_rating": (
+            round(float(ratings.mean()), 3)
+            if ratings.notna().any()
+            else None
+        ),
+        "five_star_reviews": int((ratings == 5).sum()),
+        "four_star_reviews": int((ratings == 4).sum()),
+        "three_star_reviews": int((ratings == 3).sum()),
+        "two_star_reviews": int((ratings == 2).sum()),
+        "one_star_reviews": int((ratings == 1).sum()),
+        "recommendation_rate": recommendation_rate,
+        "verified_purchase_rate": verified_purchase_rate
+    }
+
+
+def save_snapshot(df, source, product_name, product_url):
+    if df is None or df.empty:
+        return
+
+    client = get_supabase_client()
+
+    snapshot = calculate_snapshot(
+        df=df,
+        source=source,
+        product_name=product_name,
+        product_url=product_url
+    )
+
+    client.table("snapshots").upsert(
+        snapshot,
+        on_conflict="product_name,source,scrape_date"
+    ).execute()
+
+
+def load_new_reviews(product_name, source, since_date):
+    client = get_supabase_client()
+
+    response = (
+        client.table("reviews")
+        .select("*")
+        .eq("product_name", product_name)
+        .eq("source", source)
+        .gte("first_seen_at", since_date)
+        .order("first_seen_at")
+        .execute()
+    )
+
+    return pd.DataFrame(response.data or [])
+
+
+def load_snapshots(product_name, source=None):
+    client = get_supabase_client()
+
+    query = (
+        client.table("snapshots")
+        .select("*")
+        .eq("product_name", product_name)
+        .order("scrape_date")
+    )
+
+    if source:
+        query = query.eq("source", source)
+
+    response = query.execute()
+
+    return pd.DataFrame(response.data or [])
