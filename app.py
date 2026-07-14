@@ -367,7 +367,7 @@ if st.button("Generate Product Report", use_container_width=True):
                 f"{source} reviews were scraped successfully, "
                 "but database saving failed."
         )
-            st.code(str(db_error))
+            st.code(str(error))
         
         retailer_data[source] = df
         retailer_links[source] = link
