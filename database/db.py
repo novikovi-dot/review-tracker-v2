@@ -209,19 +209,23 @@ def get_existing_review_ids(product_name, source):
 
     existing_ids = set()
     start = 0
-    page_size = 1000
+    requested_page_size = 1000
 
     while True:
         response = (
             client.table("reviews")
-            .select("review_id")
+            .select("id,review_id")
             .eq("product_name", product_name)
             .eq("source", source)
-            .range(start, start + page_size - 1)
+            .order("id")
+            .range(start, start + requested_page_size - 1)
             .execute()
         )
 
         rows = response.data or []
+
+        if not rows:
+            break
 
         for row in rows:
             review_id = row.get("review_id")
@@ -229,14 +233,11 @@ def get_existing_review_ids(product_name, source):
             if review_id is not None:
                 existing_ids.add(str(review_id))
 
-        if len(rows) < page_size:
-            break
-
-        start += page_size
+        # Move forward by the number Supabase actually returned,
+        # rather than assuming it returned 1,000.
+        start += len(rows)
 
     return existing_ids
-
-
 
 def calculate_snapshot(df, source, product_name, product_url):
     ratings = pd.to_numeric(
