@@ -225,11 +225,13 @@ def create_rating_breakdown(df):
 
     return breakdown
 
-
 def create_combined_excel_report(
     retailer_data,
     retailer_links,
-    product_name
+    product_name,
+    new_reviews_by_source,
+    theme_summaries,
+    retailer_updates
 ):
     output = BytesIO()
     comparison_rows = []
@@ -248,19 +250,43 @@ def create_combined_excel_report(
                 if ratings.notna().any()
                 else ""
             )
-
         else:
             avg_rating = ""
+
+        new_reviews_df = new_reviews_by_source.get(
+            source,
+            pd.DataFrame()
+        )
+
+        new_review_count = (
+            len(new_reviews_df)
+            if new_reviews_df is not None
+            else 0
+        )
 
         comparison_rows.append({
             "Product": product_name,
             "Retailer": source,
-            "Reviews": len(df),
+            "Total Reviews": len(df),
+            "New Reviews": new_review_count,
             "Average Rating": avg_rating,
             "Product URL": retailer_links.get(source, "")
         })
 
     comparison_df = pd.DataFrame(comparison_rows)
+
+    updates_df = pd.DataFrame([
+        {
+            "Retailer": source,
+            "New Reviews": (
+                len(new_reviews_by_source.get(source, pd.DataFrame()))
+                if new_reviews_by_source.get(source) is not None
+                else 0
+            ),
+            "Update": update
+        }
+        for source, update in retailer_updates.items()
+    ])
 
     with pd.ExcelWriter(
         output,
@@ -272,6 +298,13 @@ def create_combined_excel_report(
             sheet_name="Retailer Comparison"
         )
 
+        updates_df.to_excel(
+            writer,
+            index=False,
+            sheet_name="New Review Summary"
+        )
+
+        # Existing retailer sheets
         for source, df in retailer_data.items():
             summary_df = summarize_retailer(
                 df=df,
@@ -280,9 +313,7 @@ def create_combined_excel_report(
                 product_url=retailer_links.get(source, "")
             )
 
-            rating_breakdown_df = (
-                create_rating_breakdown(df)
-            )
+            rating_breakdown_df = create_rating_breakdown(df)
 
             summary_sheet = f"{source} Summary"[:31]
             reviews_sheet = f"{source} Reviews"[:31]
@@ -306,6 +337,67 @@ def create_combined_excel_report(
                 sheet_name=reviews_sheet
             )
 
+        # New-review sheets
+        for source in retailer_data:
+            new_reviews_df = new_reviews_by_source.get(
+                source,
+                pd.DataFrame()
+            )
+
+            new_reviews_sheet = (
+                f"{source} New Reviews"[:31]
+            )
+
+            if (
+                new_reviews_df is not None
+                and not new_reviews_df.empty
+            ):
+                new_reviews_df.to_excel(
+                    writer,
+                    index=False,
+                    sheet_name=new_reviews_sheet
+                )
+            else:
+                pd.DataFrame({
+                    "Status": [
+                        "No new reviews were detected."
+                    ]
+                }).to_excel(
+                    writer,
+                    index=False,
+                    sheet_name=new_reviews_sheet
+                )
+
+        # Theme-analysis sheets
+        for source in retailer_data:
+            theme_df = theme_summaries.get(
+                source,
+                pd.DataFrame()
+            )
+
+            themes_sheet = f"{source} Themes"[:31]
+
+            if (
+                theme_df is not None
+                and not theme_df.empty
+            ):
+                theme_df.to_excel(
+                    writer,
+                    index=False,
+                    sheet_name=themes_sheet
+                )
+            else:
+                pd.DataFrame({
+                    "Status": [
+                        "No new-review themes were detected."
+                    ]
+                }).to_excel(
+                    writer,
+                    index=False,
+                    sheet_name=themes_sheet
+                )
+
+        # Format every worksheet
         for sheet_name in writer.sheets:
             worksheet = writer.sheets[sheet_name]
 
@@ -314,7 +406,9 @@ def create_combined_excel_report(
 
             for column_cells in worksheet.columns:
                 max_length = 0
-                column_letter = column_cells[0].column_letter
+                column_letter = (
+                    column_cells[0].column_letter
+                )
 
                 for cell in column_cells:
                     if cell.value is not None:
@@ -323,9 +417,11 @@ def create_combined_excel_report(
                             len(str(cell.value))
                         )
 
-                    cell.alignment = cell.alignment.copy(
-                        wrap_text=True,
-                        vertical="top"
+                    cell.alignment = (
+                        cell.alignment.copy(
+                            wrap_text=True,
+                            vertical="top"
+                        )
                     )
 
                 worksheet.column_dimensions[
@@ -334,7 +430,6 @@ def create_combined_excel_report(
 
     output.seek(0)
     return output
-
 
 check_password()
 
@@ -661,7 +756,10 @@ if st.button(
         report_file = create_combined_excel_report(
             retailer_data=retailer_data,
             retailer_links=retailer_links,
-            product_name=selected_product
+            product_name=selected_product,
+            new_reviews_by_source=new_reviews_by_source,
+            theme_summaries=theme_summaries,
+            retailer_updates=retailer_updates
         )
 
         safe_product_name = clean_filename(
