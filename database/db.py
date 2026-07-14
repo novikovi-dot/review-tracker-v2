@@ -181,15 +181,31 @@ def save_reviews(df, source, product_name, product_url):
         for record in records
     )
 
-    batch_size = 500
+    batch_size = 100
 
     for start in range(0, len(records), batch_size):
-        batch = records[start:start + batch_size]
+    batch = records[start:start + batch_size]
 
+    try:
         client.table("reviews").upsert(
             batch,
             on_conflict="source,product_name,review_id"
         ).execute()
+
+    except Exception as error:
+        import streamlit as st
+
+        st.error(
+            f"Supabase upload failed for records "
+            f"{start + 1}–{start + len(batch)}."
+        )
+        st.code(repr(error))
+
+        if batch:
+            st.write("First record in failed batch:")
+            st.json(batch[0])
+
+        st.stop()
 
     return new_count
 
