@@ -13,7 +13,18 @@ def get_supabase_client() -> Client:
     return create_client(url, key)
 
 
-def clean_value(value: Any):
+def clean_value(value):
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        value = value.strip()
+
+        if value == "":
+            return None
+
+        return value
+
     if pd.isna(value):
         return None
 
