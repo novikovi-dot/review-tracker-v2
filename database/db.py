@@ -193,35 +193,31 @@ def save_reviews(df, source, product_name, product_url):
 
     return new_count
 
-
 def get_existing_review_ids(product_name, source):
     client = get_supabase_client()
 
-    existing_ids = set()
-    start = 0
-    page_size = 1000
-
-    while True:
+    try:
         response = (
             client.table("reviews")
             .select("review_id")
             .eq("product_name", product_name)
             .eq("source", source)
-            .range(start, start + page_size - 1)
+            .limit(5)
             .execute()
         )
 
-        rows = response.data or []
+        return {
+            str(row["review_id"])
+            for row in (response.data or [])
+        }
 
-        for row in rows:
-            existing_ids.add(str(row["review_id"]))
+    except Exception as error:
+        import streamlit as st
 
-        if len(rows) < page_size:
-            break
+        st.error("Supabase test query failed")
+        st.code(repr(error))
+        st.stop()
 
-        start += page_size
-
-    return existing_ids
 
 
 def calculate_snapshot(df, source, product_name, product_url):
