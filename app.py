@@ -360,7 +360,9 @@ if st.button("Generate Product Report", use_container_width=True):
                 product_name=selected_product,
                 product_url=link
             )
-
+            
+            st.success(f"✅ {saved_count} new reviews were added to the database.")
+            
         except Exception as error:
             saved_count = 0
             st.warning(
