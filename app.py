@@ -16,7 +16,11 @@ from analytics.theme_analysis import (
     get_emerging_issue_alerts
 )
 
-from database.db import save_reviews, save_snapshot
+from database.db import (
+    save_reviews,
+    save_snapshot,   
+    get_snapshot_changes)
+
 from scrapers.sephora import scrape_sephora_product
 from scrapers.brand import scrape_brand_product
 
@@ -613,6 +617,8 @@ if st.button(
 
         emerging_alerts = []
 
+        snapshot_changes = None
+
         retailer_update = (
             f"{source}: No update was generated."
         )
@@ -646,6 +652,11 @@ if st.button(
                 source=source,
                 product_name=selected_product,
                 product_url=link
+            )
+
+            snapshot_changes = get_snapshot_changes(
+                product_name=selected_product,
+                source=source
             )
 
             new_review_metrics = calculate_new_review_metrics(
