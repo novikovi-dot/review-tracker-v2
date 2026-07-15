@@ -603,7 +603,7 @@ if st.button(
         else:
             df = df.drop_duplicates()
 
-                saved_count = 0
+        saved_count = 0
         new_reviews_df = pd.DataFrame()
         theme_summary_df = pd.DataFrame()
 
