@@ -11,7 +11,9 @@ from scrapers.ulta import (
 
 from analytics.theme_analysis import (
     analyze_themes,
-    build_retailer_update
+    build_retailer_update,
+    calculate_new_review_metrics,
+    get_emerging_issue_alerts
 )
 
 from database.db import save_reviews, save_snapshot
@@ -666,15 +668,24 @@ if st.button(
                 product_name=selected_product,
                 product_url=link
             )
+            
+            new_review_metrics = calculate_new_review_metrics(
+                new_reviews_df
+            )
 
             theme_summary_df = analyze_themes(
                 new_reviews_df
             )
 
+            emerging_alerts = get_emerging_issue_alerts(
+                theme_summary_df
+            )
+
             retailer_update = build_retailer_update(
                 source=source,
                 new_review_count=saved_count,
-                theme_df=theme_summary_df
+                theme_df=theme_summary_df,
+                new_review_metrics=new_review_metrics
             )
 
             st.success(
