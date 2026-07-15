@@ -343,3 +343,75 @@ def load_snapshots(product_name, source=None):
     response = query.execute()
 
     return pd.DataFrame(response.data or [])
+
+def get_snapshot_changes(product_name, source):
+    snapshots = load_snapshots(
+        product_name=product_name,
+        source=source
+    )
+
+    if snapshots.empty or len(snapshots) < 2:
+        return None
+
+    snapshots["scrape_date"] = pd.to_datetime(
+        snapshots["scrape_date"],
+        errors="coerce"
+    )
+
+    snapshots = (
+        snapshots
+        .dropna(subset=["scrape_date"])
+        .sort_values("scrape_date")
+        .reset_index(drop=True)
+    )
+
+    if len(snapshots) < 2:
+        return None
+
+    previous = snapshots.iloc[-2]
+    current = snapshots.iloc[-1]
+
+    previous_rating = pd.to_numeric(
+        previous.get("average_rating"),
+        errors="coerce"
+    )
+
+    current_rating = pd.to_numeric(
+        current.get("average_rating"),
+        errors="coerce"
+    )
+
+    if (
+        pd.isna(previous_rating)
+        or pd.isna(current_rating)
+    ):
+        rating_change = None
+    else:
+        rating_change = round(
+            float(current_rating - previous_rating),
+            3
+        )
+
+    return {
+        "previous_scrape_date": (
+            previous["scrape_date"]
+            .date()
+            .isoformat()
+        ),
+        "current_scrape_date": (
+            current["scrape_date"]
+            .date()
+            .isoformat()
+        ),
+        "previous_average_rating": (
+            float(previous_rating)
+            if pd.notna(previous_rating)
+            else None
+        ),
+        "current_average_rating": (
+            float(current_rating)
+            if pd.notna(current_rating)
+            else None
+        ),
+        "rating_change": rating_change
+    }
