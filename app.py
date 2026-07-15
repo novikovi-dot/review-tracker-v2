@@ -27,8 +27,7 @@ st.set_page_config(
     layout="centered"
 )
 
-APP_PASSWORD = "abc"
-
+APP_PASSWORD = st.secrets["APP_PASSWORD"]
 
 def check_password():
     if "password_correct" not in st.session_state:
@@ -97,7 +96,6 @@ def get_rating_column(df):
 
     return None
 
-
 def summarize_retailer(
     df,
     source,
@@ -140,27 +138,6 @@ def summarize_retailer(
             ""
         )
 
-    if (
-        source != "Brand Website"
-        and not recommended_rate
-        and "recommended" in df.columns
-    ):
-        recommended = df["recommended"]
-        valid_recommendations = recommended.notna()
-
-        yes_count = (
-            recommended[valid_recommendations]
-            .eq(True)
-            .sum()
-        )
-
-        total_count = valid_recommendations.sum()
-
-        if total_count > 0:
-            recommended_rate = (
-                f"{round(yes_count / total_count * 100)}%"
-            )
-
     return pd.DataFrame({
         "Metric": [
             "Product",
@@ -189,7 +166,6 @@ def summarize_retailer(
             recommended_rate
         ]
     })
-
 
 def create_rating_breakdown(df):
     rating_col = get_rating_column(df)
@@ -627,9 +603,15 @@ if st.button(
         else:
             df = df.drop_duplicates()
 
-        saved_count = 0
+                saved_count = 0
         new_reviews_df = pd.DataFrame()
         theme_summary_df = pd.DataFrame()
+
+        new_review_metrics = calculate_new_review_metrics(
+            new_reviews_df
+        )
+
+        emerging_alerts = []
 
         retailer_update = (
             f"{source}: No update was generated."
@@ -643,9 +625,6 @@ if st.button(
                 product_url=link
             )
 
-            # Supports the updated save_reviews() function
-            # and prevents a crash if the old version is
-            # temporarily still deployed.
             if (
                 isinstance(save_result, tuple)
                 and len(save_result) == 2
@@ -657,9 +636,129 @@ if st.button(
 
                 st.warning(
                     "Theme analysis requires the updated "
-                    "save_reviews() function from Step 1. "
+                    "save_reviews() function. "
                     "The database count was saved, but the "
                     "new-review records were not returned."
+                )
+
+            save_snapshot(
+                df=df,
+                source=source,
+                product_name=selected_product,
+                product_url=link
+            )
+
+            new_review_metrics = calculate_new_review_metrics(
+                new_reviews_df
+            )
+
+            theme_summary_df = analyze_themes(
+                new_reviews_df
+            )
+
+            emerging_alerts = get_emerging_issue_alerts(
+                theme_summary_df
+            )
+
+            retailer_update = build_retailer_update(
+                source=source,
+                new_review_count=saved_count,
+                theme_df=theme_summary_df,
+                new_review_metrics=new_review_metrics
+            )
+
+            st.success(
+                f"{source}: {saved_count} new reviews "
+                "were added to the database."
+            )
+
+        except Exception as error:
+            saved_count = 0
+            new_reviews_df = pd.DataFrame()
+            theme_summary_df = pd.DataFrame()
+
+            new_review_metrics = calculate_new_review_metrics(
+                new_reviews_df
+            )
+
+            emerging_alerts = []
+
+            retailer_update = (
+                f"{source}: Review analysis was not "
+                "created because database saving failed."
+            )
+
+            st.warning(
+                f"{source} reviews were scraped "
+                "successfully, but database saving failed."
+            )
+
+            st.code(str(error))
+
+        new_reviews_by_source[source] = new_reviews_df
+        theme_summaries[source] = theme_summary_df
+        retailer_updates[source] = retailer_update
+
+        st.info(retailer_update)
+
+        if saved_count > 0:
+            st.write("New review rating breakdown")
+
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+            with metric_col1:
+                average_value = new_review_metrics[
+                    "new_review_average_rating"
+                ]
+
+                st.metric(
+                    "New Review Average",
+                    (
+                        f"{average_value:.2f}"
+                        if average_value is not None
+                        else "N/A"
+                    )
+                )
+
+            with metric_col2:
+                st.metric(
+                    "5-Star New Reviews",
+                    new_review_metrics[
+                        "five_star_new_reviews"
+                    ]
+                )
+
+            with metric_col3:
+                low_rating_count = (
+                    new_review_metrics[
+                        "one_star_new_reviews"
+                    ]
+                    + new_review_metrics[
+                        "two_star_new_reviews"
+                    ]
+                )
+
+                st.metric(
+                    "1-2 Star New Reviews",
+                    low_rating_count
+                )
+
+            if emerging_alerts:
+                st.warning(
+                    "Potential emerging concerns: "
+                    + ", ".join(
+                        alert["theme"]
+                        for alert in emerging_alerts
+                    )
+                )
+
+        if not theme_summary_df.empty:
+            with st.expander(
+                f"{source} new-review themes"
+            ):
+                st.dataframe(
+                    theme_summary_df,
+                    use_container_width=True
                 )
 
             save_snapshot(
