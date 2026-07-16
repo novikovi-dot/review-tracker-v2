@@ -8,6 +8,35 @@ YOTPO_STORE_ID = "eEgpPzBZusAXrXgLzWNhAJ6yM7P3XEnyRrdRAovz"
 
 from bs4 import BeautifulSoup
 
+def normalize_incentivized(value):
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+
+    if normalized in {
+        "true",
+        "yes",
+        "1",
+        "incentivized",
+        "incentivized review"
+    }:
+        return True
+
+    if normalized in {
+        "false",
+        "no",
+        "0",
+        "not incentivized",
+        "non-incentivized"
+    }:
+        return False
+
+    return None
+
 def extract_yotpo_product_id(url):
     # Allow a direct Yotpo API URL.
     match = re.search(r"/product/(\d+)/reviews", url)
@@ -124,7 +153,7 @@ def scrape_brand_product(
                 "review_date": review.get("createdAt"),
                 "verified_purchase": review.get("verifiedBuyer"),
                 "recommended": recommend,
-                "incentivized": review.get("isIncentivized"),
+                "incentivized": normalize_incentivized(review.get("isIncentivized")),
                 "sentiment": review.get("sentiment"),
                 "helpfulness": review.get("votesUp"),
                 "not_helpful": review.get("votesDown"),
