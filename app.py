@@ -14,7 +14,8 @@ from analytics.theme_analysis import (
     analyze_themes,
     build_retailer_update,
     calculate_new_review_metrics,
-    get_emerging_issue_alerts
+    get_emerging_issue_alerts,
+    calculate_incentive_metrics
 )
 
 from database.db import (
@@ -680,6 +681,10 @@ if st.button(
             f"{source}: No update was generated."
         )
 
+        incentive_metrics = calculate_incentive_metrics(
+            pd.DataFrame()
+        )
+
         try:
             save_result = save_reviews(
                 df=df,
@@ -723,6 +728,10 @@ if st.button(
                 end_date=report_end_date
             )
 
+            incentive_metrics = calculate_incentive_metrics(
+                reporting_reviews_df
+            )
+
             if not reporting_reviews_df.empty:
                 verification_columns = [
                     column
@@ -752,6 +761,67 @@ if st.button(
             new_review_metrics = calculate_new_review_metrics(
                 reporting_reviews_df
             )
+
+                    if not reporting_reviews_df.empty:
+            st.write("Incentivized review breakdown")
+
+            incentive_col1, incentive_col2, incentive_col3 = (
+                st.columns(3)
+            )
+
+            with incentive_col1:
+                st.metric(
+                    "Incentivized",
+                    incentive_metrics[
+                        "incentivized_reviews"
+                    ]
+                )
+
+            with incentive_col2:
+                st.metric(
+                    "Non-Incentivized",
+                    incentive_metrics[
+                        "non_incentivized_reviews"
+                    ]
+                )
+
+            with incentive_col3:
+                st.metric(
+                    "Unknown",
+                    incentive_metrics[
+                        "unknown_incentive_reviews"
+                    ]
+                )
+
+            rating_col1, rating_col2 = st.columns(2)
+
+            with rating_col1:
+                incentivized_average = incentive_metrics[
+                    "incentivized_average_rating"
+                ]
+
+                st.metric(
+                    "Incentivized Avg. Rating",
+                    (
+                        f"{incentivized_average:.2f}"
+                        if incentivized_average is not None
+                        else "N/A"
+                    )
+                )
+
+            with rating_col2:
+                organic_average = incentive_metrics[
+                    "non_incentivized_average_rating"
+                ]
+
+                st.metric(
+                    "Non-Incentivized Avg. Rating",
+                    (
+                        f"{organic_average:.2f}"
+                        if organic_average is not None
+                        else "N/A"
+                    )
+                )
 
             theme_summary_df = analyze_themes(
                 reporting_reviews_df
