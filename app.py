@@ -777,7 +777,7 @@ if st.button(
                         ]
                     )
 
-                 with incentive_col2:
+                with incentive_col2:
                      st.metric(
                         "Non-Incentivized",
                         incentive_metrics[
@@ -785,7 +785,7 @@ if st.button(
                         ]
                      )
 
-                 with incentive_col3:
+                with incentive_col3:
                      st.metric(
                          "Unknown",
                          incentive_metrics[
