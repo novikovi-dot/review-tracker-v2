@@ -415,3 +415,37 @@ def get_snapshot_changes(product_name, source):
         ),
         "rating_change": rating_change
     }
+
+def load_reviews_by_date_range(
+    product_name,
+    source,
+    start_date,
+    end_date
+):
+    client = get_supabase_client()
+
+    start_timestamp = pd.Timestamp(
+        start_date,
+        tz="UTC"
+    ).isoformat()
+
+    end_timestamp = (
+        pd.Timestamp(
+            end_date,
+            tz="UTC"
+        )
+        + pd.Timedelta(days=1)
+    ).isoformat()
+
+    response = (
+        client.table("reviews")
+        .select("*")
+        .eq("product_name", product_name)
+        .eq("source", source)
+        .gte("review_date", start_timestamp)
+        .lt("review_date", end_timestamp)
+        .order("review_date")
+        .execute()
+    )
+
+    return pd.DataFrame(response.data or [])
