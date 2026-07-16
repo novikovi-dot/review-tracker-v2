@@ -9,36 +9,44 @@ YOTPO_STORE_ID = "eEgpPzBZusAXrXgLzWNhAJ6yM7P3XEnyRrdRAovz"
 from bs4 import BeautifulSoup
 
 def extract_yotpo_product_id(url):
-    # If user pasted the Yotpo API URL directly
+    # Allow a direct Yotpo API URL.
     match = re.search(r"/product/(\d+)/reviews", url)
+
     if match:
         return match.group(1)
 
+    clean_url = url.split("?")[0].rstrip("/")
+    product_json_url = clean_url + ".js"
+
     response = requests.get(
-        url,
-        headers={"User-Agent": "Mozilla/5.0"},
+        product_json_url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json"
+        },
         timeout=30
     )
 
     if response.status_code != 200:
-        raise ValueError("Couldn't open product page.")
+        raise ValueError(
+            "Could not load the Shopify product data."
+        )
 
-    html = response.text
+    try:
+        product_data = response.json()
+    except ValueError as error:
+        raise ValueError(
+            "The product page did not return valid product data."
+        ) from error
 
-    patterns = [
-        r'"rid"\s*:\s*(\d+)',
-        r'\\"rid\\"\s*:\s*(\d+)',
-        r'"rid"\s*:\s*"(\d+)"',
-        r'\\"rid\\"\s*:\s*\\"(\d+)\\"'
-    ]
+    product_id = product_data.get("id")
 
-    for pattern in patterns:
-        match = re.search(pattern, html)
-        if match:
-            return match.group(1)
+    if not product_id:
+        raise ValueError(
+            "Could not locate the Shopify product ID."
+        )
 
-    raise ValueError("Couldn't locate Yotpo product ID.")
-
+    return str(product_id)
 
 def scrape_brand_product(
     url,
@@ -67,7 +75,7 @@ def scrape_brand_product(
         params = {
             "page": page,
             "perPage": per_page,
-            "sort": "images,date,rating,badge"
+            "sort": "date"
         }
 
         response = requests.get(endpoint, params=params, timeout=30)
@@ -79,6 +87,12 @@ def scrape_brand_product(
 
         products = data.get("products", [])
         product_name = products[0].get("name") if products else None
+
+        if page == 1 and not product_name:
+            raise ValueError(
+                "Yotpo did not return product information "
+                "for this product ID."
+            )
 
         reviews = data.get("reviews", [])
 
