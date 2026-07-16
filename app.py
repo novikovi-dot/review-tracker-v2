@@ -18,8 +18,10 @@ from analytics.theme_analysis import (
 
 from database.db import (
     save_reviews,
-    save_snapshot,   
-    get_snapshot_changes)
+    save_snapshot,
+    get_snapshot_changes,
+    load_reviews_by_date_range
+)
 
 from scrapers.sephora import scrape_sephora_product
 from scrapers.brand import scrape_brand_product
