@@ -449,3 +449,37 @@ def load_reviews_by_date_range(
     )
 
     return pd.DataFrame(response.data or [])
+
+def load_all_reviews(product_name, source):
+    client = get_supabase_client()
+
+    all_rows = []
+    start = 0
+    page_size = 1000
+
+    while True:
+        response = (
+            client.table("reviews")
+            .select("*")
+            .eq("product_name", product_name)
+            .eq("source", source)
+            .order("review_date")
+            .range(
+                start,
+                start + page_size - 1
+            )
+            .execute()
+        )
+
+        rows = response.data or []
+
+        if not rows:
+            break
+
+        all_rows.extend(rows)
+        start += len(rows)
+
+        if len(rows) < page_size:
+            break
+
+    return pd.DataFrame(all_rows)
