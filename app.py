@@ -723,6 +723,32 @@ if st.button(
                 end_date=report_end_date
             )
 
+            if not reporting_reviews_df.empty:
+                verification_columns = [
+                    column
+                    for column in [
+                      "review_id",
+                      "review_date",
+                      "rating",
+                      "review_title",
+                      "review_text",
+                      "reviewer_name"
+                    ]
+                    if column in reporting_reviews_df.columns
+                ]
+                with st.expander(
+                    f"{source} reviews in selected date range"
+                ):
+                    st.dataframe(
+                        reporting_reviews_df[
+                            verification_columns
+                        ].sort_values(
+                            "review_date",
+                            ascending=False
+                        ),
+                        use_container_width=True
+                    )
+
             new_review_metrics = calculate_new_review_metrics(
                 reporting_reviews_df
             )
@@ -742,11 +768,11 @@ if st.button(
                 new_review_metrics=new_review_metrics
             )
 
-            st.success(
-                f"{source}: {saved_count} previously unseen "
-                "reviews were added to the database."
+            st.caption(
+                f"Database maintenance: {saved_count} previously "
+                "missing review records were saved."
             )
-
+            
             st.info(
                 f"{source}: {len(reporting_reviews_df)} reviews "
                 f"were posted from {report_start_date} "
