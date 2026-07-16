@@ -751,7 +751,7 @@ if st.button(
                     "The database count was saved, but the "
                     "new-review records were not returned."
                 )
-                        save_snapshot(
+            save_snapshot(
                 df=df,
                 source=source,
                 product_name=selected_product,
@@ -827,10 +827,6 @@ if st.button(
                         use_container_width=True
                     )
 
-            new_review_metrics = calculate_new_review_metrics(
-                reporting_reviews_df
-            )
-
             if not reporting_reviews_df.empty:
                 st.write("Incentivized review breakdown")
 
@@ -891,10 +887,7 @@ if st.button(
                             else "N/A"
                         )
                      )
-
-            theme_summary_df = analyze_themes(
-                reporting_reviews_df
-            )
+                    
 
             emerging_alerts = get_emerging_issue_alerts(
                 theme_summary_df
