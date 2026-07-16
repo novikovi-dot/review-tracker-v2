@@ -22,7 +22,8 @@ from database.db import (
     save_reviews,
     save_snapshot,
     get_snapshot_changes,
-    load_reviews_by_date_range
+    load_reviews_by_date_range,
+    load_all_reviews
 )
 
 from scrapers.sephora import scrape_sephora_product
@@ -763,12 +764,20 @@ if st.button(
                 source=source
             )
 
-            reporting_reviews_df = load_reviews_by_date_range(
-                product_name=selected_product,
-                source=source,
-                start_date=report_start_date,
-                end_date=report_end_date
-            )
+                      if report_all_time:
+                reporting_reviews_df = load_all_reviews(
+                    product_name=selected_product,
+                    source=source
+                )
+            else:
+                reporting_reviews_df = (
+                    load_reviews_by_date_range(
+                        product_name=selected_product,
+                        source=source,
+                        start_date=report_start_date,
+                        end_date=report_end_date
+                    )
+                )
 
             incentive_metrics = calculate_incentive_metrics(
                 reporting_reviews_df
