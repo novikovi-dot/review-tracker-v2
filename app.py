@@ -675,7 +675,7 @@ if st.button(
                     "new-review records were not returned."
                 )
 
-                        save_snapshot(
+            save_snapshot(
                 df=df,
                 source=source,
                 product_name=selected_product,
