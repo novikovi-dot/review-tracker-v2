@@ -764,7 +764,7 @@ if st.button(
                 source=source
             )
 
-                      if report_all_time:
+            if report_all_time:
                 reporting_reviews_df = load_all_reviews(
                     product_name=selected_product,
                     source=source
@@ -780,6 +780,10 @@ if st.button(
                 )
 
             incentive_metrics = calculate_incentive_metrics(
+                reporting_reviews_df
+            )
+
+            new_review_metrics = calculate_new_review_metrics(
                 reporting_reviews_df
             )
 
