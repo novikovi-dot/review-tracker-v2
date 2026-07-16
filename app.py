@@ -751,8 +751,7 @@ if st.button(
                     "The database count was saved, but the "
                     "new-review records were not returned."
                 )
-
-            save_snapshot(
+                        save_snapshot(
                 df=df,
                 source=source,
                 product_name=selected_product,
@@ -770,13 +769,24 @@ if st.button(
                     source=source
                 )
             else:
-                reporting_reviews_df = (
-                    load_reviews_by_date_range(
-                        product_name=selected_product,
-                        source=source,
-                        start_date=report_start_date,
-                        end_date=report_end_date
-                    )
+                reporting_reviews_df = load_reviews_by_date_range(
+                    product_name=selected_product,
+                    source=source,
+                    start_date=report_start_date,
+                    end_date=report_end_date
+                )
+
+            if report_all_time:
+                st.info(
+                    f"{source}: {len(reporting_reviews_df)} "
+                    "reviews included across all available dates."
+                )
+            else:
+                st.info(
+                    f"{source}: {len(reporting_reviews_df)} "
+                    "reviews have posting dates between "
+                    f"{report_start_date} and "
+                    f"{report_end_date}."
                 )
 
             incentive_metrics = calculate_incentive_metrics(
@@ -784,6 +794,10 @@ if st.button(
             )
 
             new_review_metrics = calculate_new_review_metrics(
+                reporting_reviews_df
+            )
+
+            theme_summary_df = analyze_themes(
                 reporting_reviews_df
             )
 
