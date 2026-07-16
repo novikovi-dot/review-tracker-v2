@@ -46,6 +46,76 @@ def get_property(details, property_key):
             return values[0] if values else ""
     return ""
 
+def detect_incentivized_review(review):
+    details = review.get("details", {}) or {}
+
+    searchable_values = []
+
+    for prop in details.get("properties", []):
+        key = str(prop.get("key", "")).strip().lower()
+        values = prop.get("value", [])
+
+        if not isinstance(values, list):
+            values = [values]
+
+        searchable_values.append(key)
+
+        for value in values:
+            searchable_values.append(
+                str(value).strip().lower()
+            )
+
+    badges = review.get("badges", {}) or {}
+
+    if isinstance(badges, dict):
+        for key, value in badges.items():
+            searchable_values.append(
+                str(key).strip().lower()
+            )
+            searchable_values.append(
+                str(value).strip().lower()
+            )
+
+    disclosure = details.get("disclosure", "")
+
+    if disclosure:
+        searchable_values.append(
+            str(disclosure).strip().lower()
+        )
+
+    combined_text = " ".join(searchable_values)
+
+    incentivized_terms = [
+        "incentivized",
+        "received free product",
+        "free product",
+        "complimentary",
+        "product received for free",
+        "received this product for free",
+        "gifted",
+        "sampling program"
+    ]
+
+    non_incentivized_terms = [
+        "not incentivized",
+        "non-incentivized",
+        "non incentivized"
+    ]
+
+    if any(
+        term in combined_text
+        for term in non_incentivized_terms
+    ):
+        return False
+
+    if any(
+        term in combined_text
+        for term in incentivized_terms
+    ):
+        return True
+
+    return None
+
 
 def make_request(url, params):
     for attempt in range(5):
@@ -132,6 +202,7 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
                 "created_date": review.get("created_date", ""),
                 "helpful_votes": metrics.get("helpful_votes", ""),
                 "not_helpful_votes": metrics.get("not_helpful_votes", ""),
+                "incentivized": detect_incentivized_review(review),
                 "hair_type": get_property(details, "hairtype"),
             })
 
