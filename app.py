@@ -526,6 +526,48 @@ with st.expander("Settings"):
         step=0.05
     )
 
+st.subheader("Review reporting period")
+
+default_end_date = date.today()
+default_start_date = (
+    default_end_date - timedelta(days=13)
+)
+
+all_time_col, start_date_col, end_date_col = st.columns(
+    [0.8, 1.4, 1.4]
+)
+
+with all_time_col:
+    report_all_time = st.checkbox(
+        "All time",
+        value=False
+    )
+
+with start_date_col:
+    report_start_date = st.date_input(
+        "Start date",
+        value=default_start_date,
+        max_value=default_end_date,
+        disabled=report_all_time
+    )
+
+with end_date_col:
+    report_end_date = st.date_input(
+        "End date",
+        value=default_end_date,
+        max_value=default_end_date,
+        disabled=report_all_time
+    )
+
+if (
+    not report_all_time
+    and report_start_date > report_end_date
+):
+    st.error(
+        "The start date cannot be later than the end date."
+    )
+    st.stop()
+    
     show_preview = st.checkbox(
         "Show preview table",
         value=True
