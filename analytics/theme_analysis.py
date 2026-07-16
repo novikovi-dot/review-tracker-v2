@@ -463,3 +463,100 @@ def build_retailer_update(
         )
 
     return sentence
+
+def normalize_incentive_value(value):
+    if value is None or pd.isna(value):
+        return None
+
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+
+    if normalized in {
+        "true",
+        "yes",
+        "1",
+        "incentivized",
+        "incentivized review",
+        "free product",
+        "complimentary"
+    }:
+        return True
+
+    if normalized in {
+        "false",
+        "no",
+        "0",
+        "non-incentivized",
+        "not incentivized"
+    }:
+        return False
+
+    return None
+
+def calculate_incentive_metrics(reviews_df):
+    metrics = {
+        "incentivized_reviews": 0,
+        "non_incentivized_reviews": 0,
+        "unknown_incentive_reviews": 0,
+        "incentivized_average_rating": None,
+        "non_incentivized_average_rating": None
+    }
+
+    if reviews_df is None or reviews_df.empty:
+        return metrics
+
+    df = reviews_df.copy()
+
+    if "incentivized" not in df.columns:
+        metrics["unknown_incentive_reviews"] = len(df)
+        return metrics
+
+    incentive_values = df["incentivized"].apply(
+        lambda value: normalize_incentive_value(value)
+    )
+
+    ratings = pd.to_numeric(
+        df.get(
+            "rating",
+            pd.Series(index=df.index, dtype=float)
+        ),
+        errors="coerce"
+    )
+
+    incentivized_mask = incentive_values.eq(True)
+    non_incentivized_mask = incentive_values.eq(False)
+    unknown_mask = incentive_values.isna()
+
+    metrics["incentivized_reviews"] = int(
+        incentivized_mask.sum()
+    )
+
+    metrics["non_incentivized_reviews"] = int(
+        non_incentivized_mask.sum()
+    )
+
+    metrics["unknown_incentive_reviews"] = int(
+        unknown_mask.sum()
+    )
+
+    incentivized_ratings = ratings[incentivized_mask]
+    non_incentivized_ratings = ratings[
+        non_incentivized_mask
+    ]
+
+    if incentivized_ratings.notna().any():
+        metrics["incentivized_average_rating"] = round(
+            float(incentivized_ratings.mean()),
+            2
+        )
+
+    if non_incentivized_ratings.notna().any():
+        metrics["non_incentivized_average_rating"] = round(
+            float(non_incentivized_ratings.mean()),
+            2
+        )
+
+    return metrics
+    
