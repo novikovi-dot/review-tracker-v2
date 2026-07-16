@@ -776,7 +776,7 @@ if st.button(
 
             st.code(str(error))
 
-        new_reviews_by_source[source] = new_reviews_df
+        new_reviews_by_source[source] = reporting_reviews_df
         theme_summaries[source] = theme_summary_df
         retailer_updates[source] = retailer_update
 
@@ -850,7 +850,7 @@ if st.button(
             "Source": source,
             "Status": "Complete",
             "Reviews": len(df),
-            "New Reviews": saved_count
+            "Reviews in Selected Period": len(reporting_reviews_df)
         })
 
         if show_preview:
