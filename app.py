@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from datetime import date, timedelta
 
 from products import PRODUCTS
 
@@ -515,7 +516,6 @@ with st.expander("Selected product links"):
                 f"**{platform}:** No link saved"
             )
 
-
 with st.expander("Settings"):
     delay_seconds = st.slider(
         "Delay between requests",
@@ -529,6 +529,32 @@ with st.expander("Settings"):
         "Show preview table",
         value=True
     )
+
+    default_end_date = date.today()
+    default_start_date = (
+        default_end_date - timedelta(days=13)
+    )
+
+    date_col1, date_col2 = st.columns(2)
+
+    with date_col1:
+        report_start_date = st.date_input(
+            "Review start date",
+            value=default_start_date
+        )
+
+    with date_col2:
+        report_end_date = st.date_input(
+            "Review end date",
+            value=default_end_date
+        )
+
+if report_start_date > report_end_date:
+    st.error(
+        "The review start date must be before "
+        "the review end date."
+    )
+    st.stop()
 
 
 if st.button(
@@ -649,7 +675,7 @@ if st.button(
                     "new-review records were not returned."
                 )
 
-            save_snapshot(
+                        save_snapshot(
                 df=df,
                 source=source,
                 product_name=selected_product,
@@ -661,12 +687,19 @@ if st.button(
                 source=source
             )
 
+            reporting_reviews_df = load_reviews_by_date_range(
+                product_name=selected_product,
+                source=source,
+                start_date=report_start_date,
+                end_date=report_end_date
+            )
+
             new_review_metrics = calculate_new_review_metrics(
-                new_reviews_df
+                reporting_reviews_df
             )
 
             theme_summary_df = analyze_themes(
-                new_reviews_df
+                reporting_reviews_df
             )
 
             emerging_alerts = get_emerging_issue_alerts(
@@ -675,14 +708,20 @@ if st.button(
 
             retailer_update = build_retailer_update(
                 source=source,
-                new_review_count=saved_count,
+                new_review_count=len(reporting_reviews_df),
                 theme_df=theme_summary_df,
                 new_review_metrics=new_review_metrics
             )
 
             st.success(
-                f"{source}: {saved_count} new reviews "
-                "were added to the database."
+                f"{source}: {saved_count} previously unseen "
+                "reviews were added to the database."
+            )
+
+            st.info(
+                f"{source}: {len(reporting_reviews_df)} reviews "
+                f"were posted from {report_start_date} "
+                f"through {report_end_date}."
             )
 
         except Exception as error:
@@ -714,7 +753,7 @@ if st.button(
 
         st.info(retailer_update)
 
-        if saved_count > 0:
+        if not reporting_reviews_df.empty:
             st.write("New review rating breakdown")
 
             metric_col1, metric_col2, metric_col3 = st.columns(3)
