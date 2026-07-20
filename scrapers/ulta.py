@@ -46,76 +46,55 @@ def get_property(details, property_key):
             return values[0] if values else ""
     return ""
 
-def detect_incentivized_review(review):
-    details = review.get("details", {}) or {}
-
-    searchable_values = []
-
-    for prop in details.get("properties", []):
-        key = str(prop.get("key", "")).strip().lower()
-        values = prop.get("value", [])
-
-        if not isinstance(values, list):
-            values = [values]
-
-        searchable_values.append(key)
-
-        for value in values:
-            searchable_values.append(
-                str(value).strip().lower()
-            )
-
-    badges = review.get("badges", {}) or {}
-
-    if isinstance(badges, dict):
-        for key, value in badges.items():
-            searchable_values.append(
-                str(key).strip().lower()
-            )
-            searchable_values.append(
-                str(value).strip().lower()
-            )
-
-    disclosure = details.get("disclosure", "")
-
-    if disclosure:
-        searchable_values.append(
-            str(disclosure).strip().lower()
-        )
-
-    combined_text = " ".join(searchable_values)
-
-    incentivized_terms = [
-        "incentivized",
-        "received free product",
-        "free product",
-        "complimentary",
-        "product received for free",
-        "received this product for free",
-        "gifted",
-        "sampling program"
-    ]
-
-    non_incentivized_terms = [
-        "not incentivized",
-        "non-incentivized",
-        "non incentivized"
-    ]
-
-    if any(
-        term in combined_text
-        for term in non_incentivized_terms
-    ):
+def detect_incentivized_review(review_text):
+    if not review_text:
         return False
 
-    if any(
-        term in combined_text
-        for term in incentivized_terms
-    ):
-        return True
+    normalized_text = str(review_text).lower().strip()
+
+    disclosure_phrases = [
+        "i received this product in exchange for my honest review",
+        "received this product in exchange for my honest review",
+        "in exchange for my honest review",
+        "received this product for free",
+        "received this product complimentary",
+        "received this complimentary",
+        "complimentary product",
+        "gifted this product",
+        "gifted by",
+        "free product",
+        "product was provided to me",
+        "product was sent to me",
+        "received this product to review",
+        "received this item to review",
+        "influenster"
+    ]
+
+    return any(
+        phrase in normalized_text
+        for phrase in disclosure_phrases
+    )
+
+
+def extract_review_date(review, details):
+    possible_dates = [
+        review.get("created_date"),
+        review.get("review_date"),
+        review.get("submission_time"),
+        review.get("submission_date"),
+        review.get("date"),
+        details.get("created_date"),
+        details.get("review_date"),
+        details.get("submission_time"),
+        details.get("submission_date"),
+        details.get("date")
+    ]
+
+    for value in possible_dates:
+        if value is not None and str(value).strip() != "":
+            return value
 
     return None
-
 
 def make_request(url, params):
     for attempt in range(5):
@@ -216,32 +195,60 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
             total_results = data.get("paging", {}).get("total_results", 0)
 
         for review in reviews:
-            details = review.get("details", {})
-            metrics = review.get("metrics", {})
-       
-        review_text = details.get("comments", "")
+            details = review.get("details", {}) or {}
+            metrics = review.get("metrics", {}) or {}
 
-        all_reviews.append({
-            "matched_id": product_id,
-            "review_id": review.get("review_id", ""),
-            "rating": metrics.get("rating", ""),
-            "review_title": details.get("headline", ""),
-            "review_text": review_text,
-            "reviewer_name": details.get("nickname", ""),
-            "location": review.get("location", ""),
-            "review_date": review.get("created_date", ""),
-            "helpful_votes": metrics.get("helpful_votes", ""),
-            "not_helpful_votes": metrics.get("not_helpful_votes",""),
-            "hair_type": get_property(details, "hairtype"),
-            "incentivized": detect_incentivized_review(review_text),
-        })    
-        
-        if total_results and review_progress_bar is not None and review_progress_text is not None:
-            progress = min(len(all_reviews) / total_results, 1.0)
-            review_progress_bar.progress(progress)
-            review_progress_text.write(
-                f"Downloaded {len(all_reviews):,} of {total_results:,} reviews..."
+            review_text = details.get("comments", "") or ""
+            review_date = extract_review_date(
+                review,
+                details
             )
+
+            all_reviews.append({
+                "matched_id": product_id,
+                "review_id": review.get("review_id", ""),
+                "rating": metrics.get("rating", ""),
+                "review_title": details.get("headline", ""),
+                "review_text": review_text,
+                "reviewer_name": details.get("nickname", ""),
+                "location": (
+                    review.get("location")
+                    or details.get("location", "")
+                ),
+                "review_date": review_date,
+                "helpful_votes": metrics.get(
+                    "helpful_votes",
+                    ""
+                ),
+                "not_helpful_votes": metrics.get(
+                    "not_helpful_votes",
+                    ""
+                ),
+                "hair_type": get_property(
+                    details,
+                    "hairtype"
+                ),
+                "incentivized": detect_incentivized_review(
+                    review_text
+                ),
+            })
+
+            if (
+                total_results
+                and review_progress_bar is not None
+                and review_progress_text is not None
+            ):
+                progress = min(
+                    len(all_reviews) / total_results,
+                    1.0
+                )
+
+                review_progress_bar.progress(progress)
+
+                review_progress_text.write(
+                    f"Downloaded {len(all_reviews):,} "
+                    f"of {total_results:,} reviews..."
+                )
 
         next_page_url = data.get("paging", {}).get("next_page_url")
 
