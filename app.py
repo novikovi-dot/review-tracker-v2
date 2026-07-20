@@ -882,7 +882,7 @@ if st.button(
                     )
                 )
 
-                        st.write("Rating change since last saved snapshot")
+            st.write("Rating change since last saved snapshot")
 
             if snapshot_changes is None:
                 st.metric(
