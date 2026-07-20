@@ -663,6 +663,10 @@ if st.button(
         emerging_alerts = []
 
         snapshot_changes = None
+        current_rating = None
+        rating_change = None
+        previous_rating = None
+        previous_scrape_date = None
 
         retailer_update = (
             f"{source}: No update was generated."
@@ -706,7 +710,83 @@ if st.button(
                 product_name=selected_product,
                 source=source
             )
+            
+            rating_column = get_rating_column(df)
 
+            if rating_column:
+                numeric_ratings = pd.to_numeric(
+                    df[rating_column],
+                    errors="coerce"
+                )
+
+                if numeric_ratings.notna().any():
+                    current_rating = float(
+                        numeric_ratings.mean()
+                    )
+
+            if snapshot_changes:
+                snapshot_current_rating = (
+                    snapshot_changes.get(
+                        "current_average_rating"
+                    )
+                )
+
+                if snapshot_current_rating is not None:
+                    current_rating = (
+                        snapshot_current_rating
+                    )
+
+                rating_change = snapshot_changes.get(
+                    "rating_change"
+                )
+
+                previous_rating = snapshot_changes.get(
+                    "previous_average_rating"
+                )
+
+                previous_scrape_date = (
+                    snapshot_changes.get(
+                        "previous_scrape_date"
+                    )
+                )
+
+            st.write("Overall rating")
+
+            if current_rating is None:
+                st.metric(
+                    "Current Average Rating",
+                    "N/A"
+                )
+
+            elif rating_change is None:
+                st.metric(
+                    "Current Average Rating",
+                    f"{current_rating:.2f}"
+                )
+
+                st.caption(
+                    "Rating change will appear after "
+                    "two different snapshot dates "
+                    "have been saved."
+                )
+
+            else:
+                st.metric(
+                    "Current Average Rating",
+                    f"{current_rating:.2f}",
+                    delta=f"{rating_change:+.2f}"
+                )
+
+                if (
+                    previous_rating is not None
+                    and previous_scrape_date
+                ):
+                    st.caption(
+                        f"Previous rating: "
+                        f"{previous_rating:.2f} on "
+                        f"{previous_scrape_date}."
+                    )
+            
             if report_all_time:
                 reporting_reviews_df = load_all_reviews(
                     product_name=selected_product,
@@ -952,7 +1032,19 @@ if st.button(
             "Source": source,
             "Status": "Complete",
             "Reviews": len(df),
-            "Reviews in Selected Period": len(reporting_reviews_df)
+            "Reviews in Selected Period": len(
+                reporting_reviews_df
+            ),
+            "Current Rating": (
+                round(current_rating, 2)
+                if current_rating is not None
+                else "N/A"
+            ),
+            "Rating Change": (
+                f"{rating_change:+.2f}"
+                if rating_change is not None
+                else "N/A"
+            )
         })
 
         if show_preview:
