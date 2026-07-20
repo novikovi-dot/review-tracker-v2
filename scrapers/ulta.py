@@ -145,6 +145,34 @@ def make_request(url, params):
 
     return None
 
+def detect_incentivized_review(review_text):
+    if not review_text:
+        return False
+
+    normalized_text = str(review_text).lower().strip()
+
+    disclosure_phrases = [
+        "i received this product in exchange for my honest review",
+        "received this product in exchange for my honest review",
+        "in exchange for my honest review",
+        "received this product for free",
+        "received this product complimentary",
+        "received this complimentary",
+        "complimentary product",
+        "gifted this product",
+        "gifted by",
+        "free product",
+        "product was provided to me",
+        "product was sent to me",
+        "received this product to review",
+        "received this item to review"
+    ]
+
+    return any(
+        phrase in normalized_text
+        for phrase in disclosure_phrases
+    )
+
 def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_progress_text=None):
     all_reviews = []
     official_recommendation_rate = ""
@@ -199,10 +227,10 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
                 "review_text": details.get("comments", ""),
                 "reviewer_name": details.get("nickname", ""),
                 "location": review.get("location", ""),
-                "created_date": review.get("created_date", ""),
+                "review_date": review.get("created_date", ""),
                 "helpful_votes": metrics.get("helpful_votes", ""),
                 "not_helpful_votes": metrics.get("not_helpful_votes", ""),
-                "incentivized": detect_incentivized_review(review),
+                "incentivized": detect_incentivized_review(review_text),
                 "hair_type": get_property(details, "hairtype"),
             })
 
