@@ -517,7 +517,6 @@ with st.expander("Selected product links"):
             st.write(
                 f"**{platform}:** No link saved"
             )
-
 with st.expander("Settings"):
     delay_seconds = st.slider(
         "Delay between requests",
@@ -526,6 +525,12 @@ with st.expander("Settings"):
         value=0.25,
         step=0.05
     )
+
+    show_preview = st.checkbox(
+        "Show preview table",
+        value=True
+    )
+
 
 st.subheader("Review reporting period")
 
@@ -568,67 +573,6 @@ if (
         "The start date cannot be later than the end date."
     )
     st.stop()
-    
-    show_preview = st.checkbox(
-        "Show preview table",
-        value=True
-    )
-
-    default_end_date = date.today()
-    default_start_date = (
-        default_end_date - timedelta(days=13)
-    )
-
-    st.write("Review reporting period")
-
-    date_col1, date_col2 = st.columns(2)
-
-    with date_col1:
-        report_start_date = st.date_input(
-            "Start date",
-            value=default_start_date,
-            max_value=default_end_date
-        )
-
-    with date_col2:
-        report_end_date = st.date_input(
-            "End date",
-            value=default_end_date,
-            max_value=default_end_date
-        )
-
-if report_start_date > report_end_date:
-    st.error(
-        "The start date cannot be later than the end date."
-    )
-    st.stop()
-
-    default_end_date = date.today()
-    default_start_date = (
-        default_end_date - timedelta(days=13)
-    )
-
-    date_col1, date_col2 = st.columns(2)
-
-    with date_col1:
-        report_start_date = st.date_input(
-            "Review start date",
-            value=default_start_date
-        )
-
-    with date_col2:
-        report_end_date = st.date_input(
-            "Review end date",
-            value=default_end_date
-        )
-
-if report_start_date > report_end_date:
-    st.error(
-        "The review start date must be before "
-        "the review end date."
-    )
-    st.stop()
-
 
 if st.button(
     "Generate Product Report",
