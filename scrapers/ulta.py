@@ -4,6 +4,7 @@ import re
 import time
 import urllib3
 from io import BytesIO
+from urllib.parse import urljoin
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -75,26 +76,59 @@ def detect_incentivized_review(review_text):
         for phrase in disclosure_phrases
     )
 
+def extract_review_date(review):
+    preferred_keys = (
+        "created_date",
+        "createdDate",
+        "review_date",
+        "reviewDate",
+        "submission_time",
+        "submissionTime",
+        "submission_date",
+        "submissionDate",
+        "date_created",
+        "dateCreated",
+        "created_at",
+        "createdAt",
+        "published_at",
+        "publishedAt",
+        "display_date",
+        "displayDate",
+        "date"
+    )
 
-def extract_review_date(review, details):
-    possible_dates = [
-        review.get("created_date"),
-        review.get("review_date"),
-        review.get("submission_time"),
-        review.get("submission_date"),
-        review.get("date"),
-        details.get("created_date"),
-        details.get("review_date"),
-        details.get("submission_time"),
-        details.get("submission_date"),
-        details.get("date")
-    ]
+    def search_nested(value):
+        if isinstance(value, dict):
+            for key in preferred_keys:
+                candidate = value.get(key)
 
-    for value in possible_dates:
-        if value is not None and str(value).strip() != "":
-            return value
+                if candidate is None:
+                    continue
 
-    return None
+                if (
+                    isinstance(candidate, str)
+                    and candidate.strip() == ""
+                ):
+                    continue
+
+                return candidate
+
+            for nested_value in value.values():
+                result = search_nested(nested_value)
+
+                if result is not None:
+                    return result
+
+        elif isinstance(value, list):
+            for item in value:
+                result = search_nested(item)
+
+                if result is not None:
+                    return result
+
+        return None
+
+    return search_nested(review)
 
 def make_request(url, params):
     for attempt in range(5):
@@ -123,34 +157,6 @@ def make_request(url, params):
             time.sleep(8 + attempt * 8)
 
     return None
-
-def detect_incentivized_review(review_text):
-    if not review_text:
-        return False
-
-    normalized_text = str(review_text).lower().strip()
-
-    disclosure_phrases = [
-        "i received this product in exchange for my honest review",
-        "received this product in exchange for my honest review",
-        "in exchange for my honest review",
-        "received this product for free",
-        "received this product complimentary",
-        "received this complimentary",
-        "complimentary product",
-        "gifted this product",
-        "gifted by",
-        "free product",
-        "product was provided to me",
-        "product was sent to me",
-        "received this product to review",
-        "received this item to review"
-    ]
-
-    return any(
-        phrase in normalized_text
-        for phrase in disclosure_phrases
-    )
 
 def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_progress_text=None):
     all_reviews = []
@@ -199,10 +205,7 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
             metrics = review.get("metrics", {}) or {}
 
             review_text = details.get("comments", "") or ""
-            review_date = extract_review_date(
-                review,
-                details
-            )
+            review_date = extract_review_date(review)
 
             all_reviews.append({
                 "matched_id": product_id,
@@ -248,19 +251,25 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
                 review_progress_text.write(
                     f"Downloaded {len(all_reviews):,} "
                     f"of {total_results:,} reviews..."
-                )
-
-        next_page_url = data.get("paging", {}).get("next_page_url")
+                ) 
+        next_page_url = (
+            data.get("paging", {})
+            .get("next_page_url")
+        )
 
         if next_page_url:
-            next_url = base_url + next_page_url
+            next_url = urljoin(
+                base_url,
+                next_page_url
+            )
+
             params = {
                 "apikey": API_KEY,
                 "_noconfig": "true"
             }
         else:
-            next_url = None
-
+            next_url = None  
+        
         time.sleep(delay_seconds)
 
     df = pd.DataFrame(all_reviews)
