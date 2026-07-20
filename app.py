@@ -882,7 +882,83 @@ if st.button(
                     )
                 )
 
-            st.write("Overall rating")
+                        st.write("Rating change since last saved snapshot")
+
+            if snapshot_changes is None:
+                st.metric(
+                    "Current overall rating",
+                    (
+                        f"{current_rating:.2f}"
+                        if current_rating is not None
+                        else "N/A"
+                    )
+                )
+
+                st.caption(
+                    "No earlier saved snapshot is available "
+                    "for comparison."
+                )
+
+            else:
+                snapshot_current_rating = (
+                    snapshot_changes.get(
+                        "current_average_rating"
+                    )
+                )
+
+                snapshot_previous_rating = (
+                    snapshot_changes.get(
+                        "previous_average_rating"
+                    )
+                )
+
+                snapshot_rating_change = (
+                    snapshot_changes.get(
+                        "rating_change"
+                    )
+                )
+
+                previous_snapshot_date = (
+                    snapshot_changes.get(
+                        "previous_scrape_date"
+                    )
+                )
+
+            snapshot_col1, snapshot_col2 = st.columns(2)
+
+                with snapshot_col1:
+                    st.metric(
+                        "Current overall rating",
+                        (
+                            f"{snapshot_current_rating:.2f}"
+                            if snapshot_current_rating is not None
+                            else "N/A"
+                        ),
+                        delta=(
+                            f"{snapshot_rating_change:+.2f}"
+                            if snapshot_rating_change is not None
+                            else None
+                        )
+                    )
+
+                with snapshot_col2:
+                    st.metric(
+                        (
+                            "Last saved snapshot "
+                            f"({previous_snapshot_date})"
+                        ),
+                        (
+                            f"{snapshot_previous_rating:.2f}"
+                            if snapshot_previous_rating is not None
+                            else "N/A"
+                        )
+                    )
+
+                st.caption(
+                    "This compares the current scrape with "
+                    f"the most recent saved snapshot from "
+                    f"{previous_snapshot_date}."
+                )
 
             if current_rating is None:
                 st.metric(
@@ -1073,58 +1149,59 @@ if st.button(
                     source=source
                 )
 
-                rating_comparison = (
-                    calculate_period_rating_change(
-                        reviews_df=all_history_df,
-                        start_date=report_start_date,
-                        end_date=report_end_date
-                    )
+                rating_comparison = calculate_period_rating_change(
+                    reviews_df=all_history_df,
+                    start_date=report_start_date,
+                    end_date=report_end_date
                 )
 
-                st.write("Overall rating change")
+                st.write(
+                    "Rating change from the start of the selected period"
+                )
 
                 if rating_comparison is None:
                     st.info(
-                        "The rating comparison could not "
-                        "be calculated because there are "
-                        "not enough dated historical reviews."
+                        "The selected-period comparison could not be "
+                        "calculated because there are not enough dated "
+                        "historical reviews."
                     )
-
                 else:
-                    rating_metric_col1, rating_metric_col2 = (
-                        st.columns(2)
-                    )
+                    period_current_rating = rating_comparison[
+                        "current_rating"
+                    ]
+                    period_baseline_rating = rating_comparison[
+                        "baseline_rating"
+                    ]
+                    period_rating_change = rating_comparison[
+                        "rating_change"
+                    ]
+                    baseline_end_date = rating_comparison[
+                        "previous_period_end"
+                    ]
 
-                    with rating_metric_col1:
+                    period_col1, period_col2 = st.columns(2)
+
+                    with period_col1:
                         st.metric(
-                            "Current Overall Rating",
-                            (
-                                f"{rating_comparison['current_rating']:.2f}"
-                            ),
-                            delta=(
-                                f"{rating_comparison['rating_change']:+.2f}"
-                            )
+                            label=f"Rating through {report_end_date}",
+                            value=f"{period_current_rating:.2f}",
+                            delta=f"{period_rating_change:+.2f}"
                         )
 
-                    with rating_metric_col2:
+                    with period_col2:
                         st.metric(
-                            "Previous Overall Rating",
-                            (
-                                f"{rating_comparison['baseline_rating']:.2f}"
-                            )
+                            label=(
+                                f"Baseline through {baseline_end_date}"
+                            ),
+                            value=f"{period_baseline_rating:.2f}"
                         )
 
                     st.caption(
-                        "Previous comparison period: "
-                        f"{rating_comparison['previous_period_start']} "
-                        "through "
-                        f"{rating_comparison['previous_period_end']}. "
-                        f"That period contained "
-                        f"{rating_comparison['previous_period_review_count']} "
-                        "reviews; the selected period contained "
-                        f"{rating_comparison['selected_period_review_count']}."
+                        f"Selected period: {report_start_date} through "
+                        f"{report_end_date}. The baseline is the cumulative "
+                        f"rating through {baseline_end_date}, which is the "
+                        "day before the selected period began."
                     )
-
         except Exception as error:
             saved_count = 0
             new_reviews_df = pd.DataFrame()
