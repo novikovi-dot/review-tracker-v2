@@ -63,18 +63,102 @@ def normalize_boolean(value):
         return False
 
     return None
+def normalize_review_date(value):
+    value = clean_value(value)
 
+    if value is None:
+        return None
+
+    try:
+        if isinstance(value, (int, float)):
+            unit = (
+                "ms"
+                if abs(float(value)) > 10_000_000_000
+                else "s"
+            )
+
+            parsed = pd.to_datetime(
+                value,
+                unit=unit,
+                utc=True,
+                errors="coerce"
+            )
+
+        else:
+            text = str(value).strip()
+
+            if text.isdigit() and len(text) in {10, 13}:
+                unit = "ms" if len(text) == 13 else "s"
+
+                parsed = pd.to_datetime(
+                    int(text),
+                    unit=unit,
+                    utc=True,
+                    errors="coerce"
+                )
+            else:
+                parsed = pd.to_datetime(
+                    text,
+                    utc=True,
+                    errors="coerce"
+                )
+
+        if pd.isna(parsed):
+            return None
+
+        return parsed.isoformat()
+
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def detect_ulta_disclosure(review_text):
+    if not review_text:
+        return False
+
+    normalized_text = str(review_text).lower()
+
+    disclosure_phrases = [
+        "i received this product in exchange for my honest review",
+        "received this product in exchange for my honest review",
+        "in exchange for my honest review",
+        "received this product for free",
+        "complimentary product",
+        "gifted this product",
+        "gifted by",
+        "free product",
+        "product was provided to me",
+        "product was sent to me",
+        "influenster"
+    ]
+
+    return any(
+        phrase in normalized_text
+        for phrase in disclosure_phrases
+    )
 
 def first_available(row, column_names, default=None):
     for column_name in column_names:
-        if column_name in row.index:
-            value = row.get(column_name)
+        if column_name not in row.index:
+            continue
 
-            if value is not None and not pd.isna(value):
-                return value
+        value = row.get(column_name)
+
+        if value is None:
+            continue
+
+        if isinstance(value, str) and value.strip() == "":
+            continue
+
+        try:
+            if pd.isna(value):
+                continue
+        except (TypeError, ValueError):
+            pass
+
+        return value
 
     return default
-
 
 def build_review_record(
     row,
@@ -104,17 +188,31 @@ def build_review_record(
 
     reviewer_name = first_available(
         row,
-        ["reviewer_name", "reviewer", "UserNickname"]
+        [
+            "reviewer_name",
+            "reviewer",
+            "UserNickname"
+        ]
     )
 
     review_date = first_available(
         row,
-        ["created_date", "review_date", "SubmissionTime", "createdAt"]
+        [
+            "review_date",
+            "created_date",
+            "SubmissionTime",
+            "createdAt"
+        ]
     )
 
     helpful_votes = first_available(
         row,
-        ["helpful_votes", "helpfulness", "TotalPositiveFeedbackCount", "votesUp"]
+        [
+            "helpful_votes",
+            "helpfulness",
+            "TotalPositiveFeedbackCount",
+            "votesUp"
+        ]
     )
 
     not_helpful_votes = first_available(
@@ -127,6 +225,19 @@ def build_review_record(
         ]
     )
 
+    incentivized = normalize_boolean(
+        first_available(
+            row,
+            ["incentivized"]
+        )
+    )
+
+    if (
+        source == "Ulta"
+        and detect_ulta_disclosure(review_text)
+    ):
+        incentivized = True
+
     return {
         "product_name": product_name,
         "product_url": product_url,
@@ -136,24 +247,43 @@ def build_review_record(
         "review_title": clean_value(review_title),
         "review_text": clean_value(review_text),
         "reviewer_name": clean_value(reviewer_name),
-        "location": clean_value(first_available(row, ["location"])),
-        "review_date": clean_value(review_date),
-        "helpful_votes": clean_value(helpful_votes),
-        "not_helpful_votes": clean_value(not_helpful_votes),
-        "hair_type": clean_value(first_available(row, ["hair_type"])),
-        "skin_type": clean_value(first_available(row, ["skin_type"])),
-        "age_range": clean_value(first_available(row, ["age_range"])),
+        "location": clean_value(
+            first_available(row, ["location"])
+        ),
+        "review_date": normalize_review_date(
+            review_date
+        ),
+        "helpful_votes": clean_value(
+            helpful_votes
+        ),
+        "not_helpful_votes": clean_value(
+            not_helpful_votes
+        ),
+        "hair_type": clean_value(
+            first_available(row, ["hair_type"])
+        ),
+        "skin_type": clean_value(
+            first_available(row, ["skin_type"])
+        ),
+        "age_range": clean_value(
+            first_available(row, ["age_range"])
+        ),
         "recommended": normalize_boolean(
             first_available(row, ["recommended"])
         ),
         "verified_purchase": normalize_boolean(
-            first_available(row, ["verified_purchase"])
+            first_available(
+                row,
+                ["verified_purchase"]
+            )
         ),
-        "incentivized": normalize_boolean(
-            first_available(row, ["incentivized"])
+        "incentivized": incentivized,
+        "sentiment": clean_value(
+            first_available(row, ["sentiment"])
         ),
-        "sentiment": clean_value(first_available(row, ["sentiment"])),
-        "topics": clean_value(first_available(row, ["topics"])),
+        "topics": clean_value(
+            first_available(row, ["topics"])
+        ),
         "last_seen_at": datetime.utcnow().isoformat()
     }
 
