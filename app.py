@@ -882,118 +882,53 @@ if st.button(
                     )
                 )
 
-            st.write("Rating change since last saved snapshot")
+            st.write(
+                "Rating change since last saved snapshot"
+            )
 
-            if snapshot_changes is None:
+            snapshot_col1, snapshot_col2 = st.columns(2)
+
+            with snapshot_col1:
                 st.metric(
-                    "Current overall rating",
-                    (
+                    label="Current overall rating",
+                    value=(
                         f"{current_rating:.2f}"
                         if current_rating is not None
+                        else "N/A"
+                    ),
+                    delta=(
+                        f"{rating_change:+.2f}"
+                        if rating_change is not None
+                        else None
+                    )
+                )
+
+            with snapshot_col2:
+                st.metric(
+                    label=(
+                        f"Last saved snapshot "
+                        f"({previous_scrape_date})"
+                        if previous_scrape_date
+                        else "Last saved snapshot"
+                    ),
+                    value=(
+                        f"{previous_rating:.2f}"
+                        if previous_rating is not None
                         else "N/A"
                     )
                 )
 
+            if snapshot_changes is None:
                 st.caption(
                     "No earlier saved snapshot is available "
                     "for comparison."
                 )
-
             else:
-                snapshot_current_rating = (
-                    snapshot_changes.get(
-                        "current_average_rating"
-                    )
-                )
-
-                snapshot_previous_rating = (
-                    snapshot_changes.get(
-                        "previous_average_rating"
-                    )
-                )
-
-                snapshot_rating_change = (
-                    snapshot_changes.get(
-                        "rating_change"
-                    )
-                )
-
-                previous_snapshot_date = (
-                    snapshot_changes.get(
-                        "previous_scrape_date"
-                    )
-                )
-
-            snapshot_col1, snapshot_col2 = st.columns(2)
-
-                with snapshot_col1:
-                    st.metric(
-                        "Current overall rating",
-                        (
-                            f"{snapshot_current_rating:.2f}"
-                            if snapshot_current_rating is not None
-                            else "N/A"
-                        ),
-                        delta=(
-                            f"{snapshot_rating_change:+.2f}"
-                            if snapshot_rating_change is not None
-                            else None
-                        )
-                    )
-
-                with snapshot_col2:
-                    st.metric(
-                        (
-                            "Last saved snapshot "
-                            f"({previous_snapshot_date})"
-                        ),
-                        (
-                            f"{snapshot_previous_rating:.2f}"
-                            if snapshot_previous_rating is not None
-                            else "N/A"
-                        )
-                    )
-
                 st.caption(
                     "This compares the current scrape with "
-                    f"the most recent saved snapshot from "
-                    f"{previous_snapshot_date}."
+                    "the most recent saved snapshot."
                 )
-
-            if current_rating is None:
-                st.metric(
-                    "Current Average Rating",
-                    "N/A"
-                )
-
-            elif rating_change is None:
-                st.metric(
-                    "Current Average Rating",
-                    f"{current_rating:.2f}"
-                )
-
-                st.caption(
-                    "Rating change will appear after "
-                    "two different snapshot dates "
-                    "have been saved."
-                )
-
-            else:
-                st.metric(
-                    "Current Average Rating",
-                    f"{current_rating:.2f}",
-                    delta=f"{rating_change:+.2f}"
-                )
-
-                if (
-                    previous_rating is not None
-                    and previous_scrape_date
-                ):
-                    st.caption(
-                        f"Previous rating: "
-                        f"{previous_rating:.2f} on "
-                        f"{previous_scrape_date}."
-                    )
+            
             
             if report_all_time:
                 reporting_reviews_df = load_all_reviews(
