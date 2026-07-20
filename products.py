@@ -21,5 +21,15 @@ PRODUCTS = {
         "Ulta": None,
         "Sephora": "https://www.sephora.com/product/ole-henriksen-peach-glaze-2-niacinamide-cleanser-P521469",
         "Brand Website": "https://olehenriksen.com/products/peach-glaze-2-niacinamide-cleanser"
+    },
+     "Silkfoliant Daily Tri Acid Smoothing Toner": {
+        "Ulta": "https://www.ulta.com/p/silkfoliant-daily-tri-acid-smoothing-toner-with-mandelic-acid-pimprod2059560?sku=2658654",
+        "Sephora": "https://www.sephora.com/product/ole-henriksen-silkfoliant-daily-tri-acid-smoothing-toner-with-mandelic-acid-P526613",
+        "Brand Website": "https://olehenriksen.com/products/silkfoliant-daily-tri-acid-smoothing-toner-with-mandelic-acid"
+    },
+     "B5 Boost Solid Foaming Cleanser": {
+        "Ulta": "https://www.ulta.com/p/b5-boost-hydrating-solid-foaming-gentle-cleanser-pimprod2059559?sku=2658655",
+        "Sephora": "https://www.sephora.com/product/strength-b5-boost-solid-foaming-cleanser-P525544",
+        "Brand Website": "https://olehenriksen.com/products/b5-boost-solid-foaming-gentle-cleanser"
     }
 }
