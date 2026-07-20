@@ -104,6 +104,138 @@ def get_rating_column(df):
         return "Rating"
 
     return None
+    
+def calculate_period_rating_change(
+    reviews_df,
+    start_date,
+    end_date
+):
+    if reviews_df is None or reviews_df.empty:
+        return None
+
+    working_df = reviews_df.copy()
+
+    if "review_date" not in working_df.columns:
+        return None
+
+    rating_column = get_rating_column(working_df)
+
+    if rating_column is None:
+        return None
+
+    working_df["parsed_review_date"] = pd.to_datetime(
+        working_df["review_date"],
+        utc=True,
+        errors="coerce"
+    )
+
+    working_df["numeric_rating"] = pd.to_numeric(
+        working_df[rating_column],
+        errors="coerce"
+    )
+
+    working_df = working_df.dropna(
+        subset=[
+            "parsed_review_date",
+            "numeric_rating"
+        ]
+    )
+
+    if working_df.empty:
+        return None
+
+    selected_start = pd.Timestamp(
+        start_date,
+        tz="UTC"
+    )
+
+    selected_end_exclusive = (
+        pd.Timestamp(
+            end_date,
+            tz="UTC"
+        )
+        + pd.Timedelta(days=1)
+    )
+
+    period_length_days = (
+        pd.Timestamp(end_date)
+        - pd.Timestamp(start_date)
+    ).days + 1
+
+    previous_start = (
+        selected_start
+        - pd.Timedelta(days=period_length_days)
+    )
+
+    previous_end_exclusive = selected_start
+
+    baseline_reviews = working_df[
+        working_df["parsed_review_date"]
+        < previous_end_exclusive
+    ]
+
+    current_reviews = working_df[
+        working_df["parsed_review_date"]
+        < selected_end_exclusive
+    ]
+
+    previous_period_reviews = working_df[
+        (
+            working_df["parsed_review_date"]
+            >= previous_start
+        )
+        & (
+            working_df["parsed_review_date"]
+            < previous_end_exclusive
+        )
+    ]
+
+    selected_period_reviews = working_df[
+        (
+            working_df["parsed_review_date"]
+            >= selected_start
+        )
+        & (
+            working_df["parsed_review_date"]
+            < selected_end_exclusive
+        )
+    ]
+
+    if baseline_reviews.empty or current_reviews.empty:
+        return None
+
+    baseline_rating = float(
+        baseline_reviews["numeric_rating"].mean()
+    )
+
+    current_rating = float(
+        current_reviews["numeric_rating"].mean()
+    )
+
+    return {
+        "baseline_rating": baseline_rating,
+        "current_rating": current_rating,
+        "rating_change": (
+            current_rating - baseline_rating
+        ),
+        "previous_period_start": (
+            previous_start.date().isoformat()
+        ),
+        "previous_period_end": (
+            (
+                previous_end_exclusive
+                - pd.Timedelta(days=1)
+            )
+            .date()
+            .isoformat()
+        ),
+        "previous_period_review_count": int(
+            len(previous_period_reviews)
+        ),
+        "selected_period_review_count": int(
+            len(selected_period_reviews)
+        )
+    }
 
 def summarize_retailer(
     df,
@@ -934,6 +1066,64 @@ if st.button(
                 f"were posted from {report_start_date} "
                 f"through {report_end_date}."
             )
+            
+            if not report_all_time:
+                all_history_df = load_all_reviews(
+                    product_name=selected_product,
+                    source=source
+                )
+
+                rating_comparison = (
+                    calculate_period_rating_change(
+                        reviews_df=all_history_df,
+                        start_date=report_start_date,
+                        end_date=report_end_date
+                    )
+                )
+
+                st.write("Overall rating change")
+
+                if rating_comparison is None:
+                    st.info(
+                        "The rating comparison could not "
+                        "be calculated because there are "
+                        "not enough dated historical reviews."
+                    )
+
+                else:
+                    rating_metric_col1, rating_metric_col2 = (
+                        st.columns(2)
+                    )
+
+                    with rating_metric_col1:
+                        st.metric(
+                            "Current Overall Rating",
+                            (
+                                f"{rating_comparison['current_rating']:.2f}"
+                            ),
+                            delta=(
+                                f"{rating_comparison['rating_change']:+.2f}"
+                            )
+                        )
+
+                    with rating_metric_col2:
+                        st.metric(
+                            "Previous Overall Rating",
+                            (
+                                f"{rating_comparison['baseline_rating']:.2f}"
+                            )
+                        )
+
+                    st.caption(
+                        "Previous comparison period: "
+                        f"{rating_comparison['previous_period_start']} "
+                        "through "
+                        f"{rating_comparison['previous_period_end']}. "
+                        f"That period contained "
+                        f"{rating_comparison['previous_period_review_count']} "
+                        "reviews; the selected period contained "
+                        f"{rating_comparison['selected_period_review_count']}."
+                    )
 
         except Exception as error:
             saved_count = 0
