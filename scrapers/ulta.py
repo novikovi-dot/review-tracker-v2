@@ -218,22 +218,24 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
         for review in reviews:
             details = review.get("details", {})
             metrics = review.get("metrics", {})
+       
+        review_text = details.get("comments", "")
 
-            all_reviews.append({
-                "matched_id": product_id,
-                "review_id": review.get("review_id", ""),
-                "rating": metrics.get("rating", ""),
-                "review_title": details.get("headline", ""),
-                "review_text": details.get("comments", ""),
-                "reviewer_name": details.get("nickname", ""),
-                "location": review.get("location", ""),
-                "review_date": review.get("created_date", ""),
-                "helpful_votes": metrics.get("helpful_votes", ""),
-                "not_helpful_votes": metrics.get("not_helpful_votes", ""),
-                "incentivized": detect_incentivized_review(review_text),
-                "hair_type": get_property(details, "hairtype"),
-            })
-
+        all_reviews.append({
+            "matched_id": product_id,
+            "review_id": review.get("review_id", ""),
+            "rating": metrics.get("rating", ""),
+            "review_title": details.get("headline", ""),
+            "review_text": review_text,
+            "reviewer_name": details.get("nickname", ""),
+            "location": review.get("location", ""),
+            "review_date": review.get("created_date", ""),
+            "helpful_votes": metrics.get("helpful_votes", ""),
+            "not_helpful_votes": metrics.get("not_helpful_votes",""),
+            "hair_type": get_property(details, "hairtype"),
+            "incentivized": detect_incentivized_review(review_text),
+        })    
+        
         if total_results and review_progress_bar is not None and review_progress_text is not None:
             progress = min(len(all_reviews) / total_results, 1.0)
             review_progress_bar.progress(progress)
