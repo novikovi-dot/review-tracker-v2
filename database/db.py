@@ -1,3 +1,4 @@
+import os
 from datetime import date, datetime
 from typing import Any
 
@@ -5,13 +6,25 @@ import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
 
+def get_secret_value(secret_name):
+    environment_value = os.getenv(secret_name)
+
+    if environment_value:
+        return environment_value
+
+    try:
+        return st.secrets[secret_name]
+    except Exception as error:
+        raise RuntimeError(
+            f"Missing required secret: {secret_name}"
+        ) from error
+
 
 def get_supabase_client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_SERVICE_KEY"]
+    url = get_secret_value("SUPABASE_URL")
+    key = get_secret_value("SUPABASE_SERVICE_KEY")
 
     return create_client(url, key)
-
 
 def clean_value(value):
     if value is None:
