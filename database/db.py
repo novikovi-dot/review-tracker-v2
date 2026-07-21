@@ -437,8 +437,8 @@ def calculate_snapshot(df, source, product_name, product_url):
         "product_url": product_url,
         "total_reviews": int(len(df)),
         "average_rating": (
-            round(float(ratings.mean()), 3)
-            if ratings.notna().any()
+            round(snapshot_average_rating, 3)
+            if snapshot_average_rating is not None
             else None
         ),
         "five_star_reviews": int((ratings == 5).sum()),
