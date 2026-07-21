@@ -5,6 +5,8 @@ import time
 import urllib3
 from io import BytesIO
 from urllib.parse import urljoin
+import hashlib
+from html import unescape
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -158,14 +160,26 @@ def make_request(url, params):
 
     return None
 
-def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_progress_text=None):
+def scrape_reviews(
+    product_id,
+    delay_seconds,
+    review_progress_bar=None,
+    review_progress_text=None
+):
     all_reviews = []
+
     official_recommendation_rate = ""
+    official_average_rating = None
+    official_total_reviews = None
 
     base_url = "https://display.powerreviews.com"
-    next_url = f"{base_url}/m/6406/l/en_US/product/{product_id}/reviews"
 
-    params = {
+    next_url = (
+        f"{base_url}/m/6406/l/en_US/"
+        f"product/{product_id}/reviews"
+    )
+
+    request_params = {
         "apikey": API_KEY,
         "_noconfig": "true",
         "sort": "Newest",
@@ -173,107 +187,322 @@ def scrape_reviews(product_id, delay_seconds, review_progress_bar=None, review_p
         "page_locale": "en_US"
     }
 
-    total_results = None
+    seen_page_urls = set()
+    page_number = 0
 
     while next_url:
-        response = make_request(next_url, params)
+        page_number += 1
+
+        request_signature = (
+            next_url,
+            tuple(sorted(request_params.items()))
+        )
+
+        if request_signature in seen_page_urls:
+            raise RuntimeError(
+                "Ulta pagination repeated the same page. "
+                "The scrape was stopped to prevent duplicate data."
+            )
+
+        seen_page_urls.add(request_signature)
+
+        response = make_request(
+            next_url,
+            request_params
+        )
 
         if response is None:
-            break
+            raise RuntimeError(
+                f"Ulta page {page_number} could not be "
+                "downloaded after multiple attempts. "
+                "No partial report was saved."
+            )
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as error:
+            raise RuntimeError(
+                f"Ulta page {page_number} returned "
+                "invalid JSON."
+            ) from error
 
-        results = data.get("results", [])
+        results = data.get("results", []) or []
+
         if not results:
             break
 
-        rollup = results[0].get("rollup", {})
-        recommended_ratio = rollup.get("recommended_ratio")
+        paging = data.get("paging", {}) or {}
 
-        if recommended_ratio not in [None, ""]:
-            official_recommendation_rate = f"{round(float(recommended_ratio) * 100)}%"
+        reported_total = paging.get(
+            "total_results"
+        )
 
-        reviews = results[0].get("reviews", [])
-        if not reviews:
-            break
+        if reported_total not in [None, ""]:
+            try:
+                official_total_reviews = int(
+                    reported_total
+                )
+            except (TypeError, ValueError):
+                pass
 
-        if total_results is None:
-            total_results = data.get("paging", {}).get("total_results", 0)
+        page_review_count = 0
 
-        for review in reviews:
-            details = review.get("details", {}) or {}
-            metrics = review.get("metrics", {}) or {}
+        # Important:
+        # Process every result group, not only results[0].
+        for result in results:
+            rollup = result.get(
+                "rollup",
+                {}
+            ) or {}
 
-            review_text = details.get("comments", "") or ""
-            review_date = extract_review_date(review)
+            recommended_ratio = rollup.get(
+                "recommended_ratio"
+            )
 
-            all_reviews.append({
-                "matched_id": product_id,
-                "review_id": review.get("review_id", ""),
-                "rating": metrics.get("rating", ""),
-                "review_title": details.get("headline", ""),
-                "review_text": review_text,
-                "reviewer_name": details.get("nickname", ""),
-                "location": (
-                    review.get("location")
-                    or details.get("location", "")
-                ),
-                "review_date": review_date,
-                "helpful_votes": metrics.get(
-                    "helpful_votes",
-                    ""
-                ),
-                "not_helpful_votes": metrics.get(
-                    "not_helpful_votes",
-                    ""
-                ),
-                "hair_type": get_property(
-                    details,
-                    "hairtype"
-                ),
-                "incentivized": detect_incentivized_review(
-                    review_text
-                ),
-            })
+            if recommended_ratio not in [None, ""]:
+                try:
+                    official_recommendation_rate = (
+                        f"{round(float(recommended_ratio) * 100)}%"
+                    )
+                except (TypeError, ValueError):
+                    pass
 
-            if (
-                total_results
-                and review_progress_bar is not None
-                and review_progress_text is not None
-            ):
-                progress = min(
-                    len(all_reviews) / total_results,
-                    1.0
+            average_rating_value = rollup.get(
+                "average_rating"
+            )
+
+            if average_rating_value in [None, ""]:
+                average_rating_value = rollup.get(
+                    "averageRating"
                 )
 
-                review_progress_bar.progress(progress)
+            if average_rating_value not in [None, ""]:
+                try:
+                    official_average_rating = float(
+                        average_rating_value
+                    )
+                except (TypeError, ValueError):
+                    pass
 
-                review_progress_text.write(
-                    f"Downloaded {len(all_reviews):,} "
-                    f"of {total_results:,} reviews..."
-                ) 
-        next_page_url = (
-            data.get("paging", {})
-            .get("next_page_url")
+            rollup_review_count = rollup.get(
+                "review_count"
+            )
+
+            if (
+                official_total_reviews is None
+                and rollup_review_count not in [None, ""]
+            ):
+                try:
+                    official_total_reviews = int(
+                        rollup_review_count
+                    )
+                except (TypeError, ValueError):
+                    pass
+
+            reviews = result.get(
+                "reviews",
+                []
+            ) or []
+
+            for review in reviews:
+                details = review.get(
+                    "details",
+                    {}
+                ) or {}
+
+                metrics = review.get(
+                    "metrics",
+                    {}
+                ) or {}
+
+                review_text = (
+                    details.get(
+                        "comments",
+                        ""
+                    )
+                    or ""
+                )
+
+                review_title = (
+                    details.get(
+                        "headline",
+                        ""
+                    )
+                    or ""
+                )
+
+                reviewer_name = (
+                    details.get(
+                        "nickname",
+                        ""
+                    )
+                    or ""
+                )
+
+                review_date = extract_review_date(
+                    review
+                )
+
+                rating = metrics.get(
+                    "rating",
+                    ""
+                )
+
+                review_id = (
+                    review.get("review_id")
+                    or review.get("reviewId")
+                    or review.get("id")
+                )
+
+                # Do not discard a review solely because
+                # Ulta omitted its normal review ID.
+                if review_id in [None, ""]:
+                    fingerprint_text = "|".join([
+                        str(product_id),
+                        str(review_date or ""),
+                        str(rating or ""),
+                        str(reviewer_name),
+                        str(review_title),
+                        str(review_text)
+                    ])
+
+                    fingerprint = hashlib.sha256(
+                        fingerprint_text.encode(
+                            "utf-8"
+                        )
+                    ).hexdigest()
+
+                    review_id = (
+                        f"generated_{fingerprint}"
+                    )
+
+                all_reviews.append({
+                    "matched_id": product_id,
+                    "review_id": str(review_id),
+                    "rating": rating,
+                    "review_title": review_title,
+                    "review_text": review_text,
+                    "reviewer_name": reviewer_name,
+                    "location": (
+                        review.get("location")
+                        or details.get(
+                            "location",
+                            ""
+                        )
+                    ),
+                    "review_date": review_date,
+                    "helpful_votes": metrics.get(
+                        "helpful_votes",
+                        ""
+                    ),
+                    "not_helpful_votes": metrics.get(
+                        "not_helpful_votes",
+                        ""
+                    ),
+                    "hair_type": get_property(
+                        details,
+                        "hairtype"
+                    ),
+                    "incentivized": (
+                        detect_incentivized_review(
+                            review_text
+                        )
+                    )
+                })
+
+                page_review_count += 1
+
+        if (
+            official_total_reviews
+            and review_progress_bar is not None
+            and review_progress_text is not None
+        ):
+            unique_downloaded = len({
+                review["review_id"]
+                for review in all_reviews
+            })
+
+            progress = min(
+                unique_downloaded
+                / official_total_reviews,
+                1.0
+            )
+
+            review_progress_bar.progress(
+                progress
+            )
+
+            review_progress_text.write(
+                f"Downloaded "
+                f"{unique_downloaded:,} of "
+                f"{official_total_reviews:,} "
+                "reviews..."
+            )
+
+        if page_review_count == 0:
+            break
+
+        next_page_url = paging.get(
+            "next_page_url"
         )
 
         if next_page_url:
             next_url = urljoin(
                 base_url,
-                next_page_url
+                unescape(
+                    str(next_page_url)
+                )
             )
 
-            params = {
+            request_params = {
                 "apikey": API_KEY,
                 "_noconfig": "true"
             }
+
         else:
-            next_url = None  
-        
+            next_url = None
+
         time.sleep(delay_seconds)
 
-    df = pd.DataFrame(all_reviews)
-    df.attrs["official_recommendation_rate"] = official_recommendation_rate
+    df = pd.DataFrame(
+        all_reviews
+    )
+
+    if not df.empty:
+        df = df.drop_duplicates(
+            subset=["review_id"],
+            keep="first"
+        ).reset_index(drop=True)
+
+    downloaded_count = len(df)
+
+    df.attrs[
+        "official_recommendation_rate"
+    ] = official_recommendation_rate
+
+    df.attrs[
+        "official_average_rating"
+    ] = official_average_rating
+
+    df.attrs[
+        "official_total_reviews"
+    ] = official_total_reviews
+
+    df.attrs[
+        "downloaded_review_count"
+    ] = downloaded_count
+
+    if (
+        official_total_reviews is not None
+        and downloaded_count < official_total_reviews
+    ):
+        raise RuntimeError(
+            "Ulta scrape was incomplete: "
+            f"downloaded {downloaded_count:,} unique reviews "
+            f"but Ulta reported {official_total_reviews:,}. "
+            "The incomplete dataset was not returned or saved."
+        )
+
     return df
 
 def create_excel_file(df):
