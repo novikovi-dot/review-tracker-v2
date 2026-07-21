@@ -692,3 +692,67 @@ def load_new_reviews_for_report(
             break
 
     return pd.DataFrame(all_rows)
+
+def load_new_reviews_for_report(
+    product_name,
+    source,
+    start_date,
+    end_date
+):
+    """
+    Retrieve only fields needed for the report.
+    Personal reviewer information is excluded.
+    """
+    client = get_supabase_client()
+
+    start_timestamp = pd.Timestamp(
+        start_date,
+        tz="UTC"
+    ).isoformat()
+
+    end_timestamp = (
+        pd.Timestamp(
+            end_date,
+            tz="UTC"
+        )
+        + pd.Timedelta(days=1)
+    ).isoformat()
+
+    all_rows = []
+    start_row = 0
+    page_size = 1000
+
+    while True:
+        response = (
+            client.table("reviews")
+            .select(
+                "rating,"
+                "review_title,"
+                "review_text,"
+                "first_seen_at,"
+                "incentivized"
+            )
+            .eq("product_name", product_name)
+            .eq("source", source)
+            .gte("first_seen_at", start_timestamp)
+            .lt("first_seen_at", end_timestamp)
+            .order("first_seen_at")
+            .range(
+                start_row,
+                start_row + page_size - 1
+            )
+            .execute()
+        )
+
+        rows = response.data or []
+
+        if not rows:
+            break
+
+        all_rows.extend(rows)
+        start_row += len(rows)
+
+        if len(rows) < page_size:
+            break
+
+    return pd.DataFrame(all_rows)
