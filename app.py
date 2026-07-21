@@ -5,6 +5,8 @@ from datetime import date, timedelta
 
 from products import PRODUCTS
 
+from analytics.biweekly_email import build_biweekly_report
+
 from scrapers.ulta import (
     scrape_product as scrape_ulta_product,
     clean_filename
@@ -1180,3 +1182,35 @@ if st.button(
         st.warning(
             "No Excel file was created."
         )
+
+st.divider()
+
+with st.expander("Biweekly email preview"):
+    st.caption(
+        "This generates a preview only. "
+        "No email will be sent."
+    )
+
+    if st.button(
+        "Generate biweekly preview",
+        key="generate_biweekly_preview"
+    ):
+        try:
+            with st.spinner(
+                "Generating report from Supabase..."
+            ):
+                report_preview = build_biweekly_report()
+
+            st.success("Preview generated.")
+
+            st.text_area(
+                "Email content",
+                value=report_preview,
+                height=700
+            )
+
+        except Exception as error:
+            st.error(
+                "The preview could not be generated. "
+                f"{type(error).__name__}: {error}"
+            )
