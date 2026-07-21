@@ -1210,10 +1210,11 @@ with st.expander("Biweekly email preview"):
                 with st.spinner(
                     "Generating report from Supabase..."
                 ):
-                    report_preview = build_biweekly_report(
-                        start_date=report_start_date,
-                        end_date=report_end_date
-                    )
+                    
+                report_preview = biweekly_email.build_biweekly_report(
+                     start_date=report_start_date,
+                     end_date=report_end_date
+                ) 
 
                 st.success("Preview generated.")
 
