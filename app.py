@@ -1182,35 +1182,48 @@ if st.button(
         st.warning(
             "No Excel file was created."
         )
-
 st.divider()
 
 with st.expander("Biweekly email preview"):
     st.caption(
-        "This generates a preview only. "
+        "This generates a formatted preview only. "
         "No email will be sent."
     )
 
-    if st.button(
-        "Generate biweekly preview",
-        key="generate_biweekly_preview"
-    ):
-        try:
-            with st.spinner(
-                "Generating report from Supabase..."
-            ):
-                report_preview = build_biweekly_report()
+    if report_all_time:
+        st.info(
+            "Turn off 'All time' and select a start "
+            "and end date above to generate the preview."
+        )
 
-            st.success("Preview generated.")
+    else:
+        st.write(
+            f"Preview period: {report_start_date} "
+            f"through {report_end_date}"
+        )
 
-            st.text_area(
-                "Email content",
-                value=report_preview,
-                height=700
-            )
+        if st.button(
+            "Generate biweekly preview",
+            key="generate_biweekly_preview"
+        ):
+            try:
+                with st.spinner(
+                    "Generating report from Supabase..."
+                ):
+                    report_preview = build_biweekly_report(
+                        start_date=report_start_date,
+                        end_date=report_end_date
+                    )
 
-        except Exception as error:
-            st.error(
-                "The preview could not be generated. "
-                f"{type(error).__name__}: {error}"
-            )
+                st.success("Preview generated.")
+
+                st.markdown(
+                    report_preview,
+                    unsafe_allow_html=True
+                )
+
+            except Exception as error:
+                st.error(
+                    "The preview could not be generated. "
+                    f"{type(error).__name__}: {error}"
+                )
