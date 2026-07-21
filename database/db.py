@@ -389,7 +389,23 @@ def calculate_snapshot(df, source, product_name, product_url):
         df.get("rating", pd.Series(dtype=float)),
         errors="coerce"
     )
+    official_average_rating = pd.to_numeric(
+        df.attrs.get("official_average_rating"),
+        errors="coerce"
+    )
 
+    if pd.notna(official_average_rating):
+        snapshot_average_rating = float(
+            official_average_rating
+        )
+    elif ratings.notna().any():
+        snapshot_average_rating = float(
+            ratings.mean()
+        )
+        
+    else:
+        snapshot_average_rating = None
+    
     recommendation_rate = None
 
     if "recommended" in df.columns:
