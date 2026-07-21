@@ -4,13 +4,12 @@ from html import escape
 
 import pandas as pd
 
-from analytics.reporting import (
-    calculate_period_rating_change
-)
 from database.db import (
     load_all_reviews,
-    load_reviews_by_date_range
+    load_reviews_by_date_range,
+    load_snapshots
 )
+
 from products import PRODUCTS
 
 REPORT_LENGTH_DAYS = 14
@@ -291,6 +290,115 @@ def format_rating_change(value):
 
     return f"{value:+.3f}"
 
+def get_official_snapshot_rating_change(
+    product_name,
+    source,
+    start_date,
+    end_date
+):
+    """
+    Use retailer-level ratings saved in snapshots.
+
+    The final rating is the latest snapshot on or before
+    the selected end date.
+
+    The baseline is the latest snapshot on or before the
+    day before the selected start date.
+    """
+    snapshots = load_snapshots(
+        product_name=product_name,
+        source=source
+    )
+
+    if snapshots is None or snapshots.empty:
+        return None
+
+    working_df = snapshots.copy()
+
+    working_df["parsed_scrape_date"] = pd.to_datetime(
+        working_df["scrape_date"],
+        errors="coerce"
+    )
+
+    working_df["numeric_average_rating"] = pd.to_numeric(
+        working_df["average_rating"],
+        errors="coerce"
+    )
+
+    working_df = (
+        working_df
+        .dropna(
+            subset=[
+                "parsed_scrape_date",
+                "numeric_average_rating"
+            ]
+        )
+        .sort_values("parsed_scrape_date")
+        .reset_index(drop=True)
+    )
+
+    if working_df.empty:
+        return None
+
+    baseline_cutoff = (
+        pd.Timestamp(start_date)
+        - pd.Timedelta(days=1)
+    )
+
+    end_cutoff = pd.Timestamp(end_date)
+
+    baseline_rows = working_df[
+        working_df["parsed_scrape_date"]
+        <= baseline_cutoff
+    ]
+
+    current_rows = working_df[
+        working_df["parsed_scrape_date"]
+        <= end_cutoff
+    ]
+
+    if current_rows.empty:
+        return None
+
+    current_row = current_rows.iloc[-1]
+
+    current_rating = float(
+        current_row["numeric_average_rating"]
+    )
+
+    result = {
+        "baseline_rating": None,
+        "current_rating": current_rating,
+        "rating_change": None,
+        "baseline_date": None,
+        "current_date": (
+            current_row["parsed_scrape_date"]
+            .date()
+            .isoformat()
+        )
+    }
+
+    if not baseline_rows.empty:
+        baseline_row = baseline_rows.iloc[-1]
+
+        baseline_rating = float(
+            baseline_row["numeric_average_rating"]
+        )
+
+        result["baseline_rating"] = baseline_rating
+
+        result["rating_change"] = (
+            current_rating - baseline_rating
+        )
+
+        result["baseline_date"] = (
+            baseline_row["parsed_scrape_date"]
+            .date()
+            .isoformat()
+        )
+
+    return result
+
 def load_platform_report_data(
     product_name,
     platform_name,
@@ -491,13 +599,15 @@ def build_platform_section(
     period_average = calculate_new_review_average(
         period_reviews
     )
-
-    rating_change = calculate_period_rating_change(
-        reviews_df=all_reviews,
+    
+    rating_change = get_official_snapshot_rating_change(
+        product_name=product_name,
+        source=source_used,
         start_date=start_date,
         end_date=end_date
     )
 
+    
     incentive_breakdown = (
         calculate_incentive_breakdown(
             period_reviews
@@ -516,18 +626,26 @@ def build_platform_section(
         start_rating = "N/A"
         end_rating = "N/A"
         rating_change_value = "N/A"
+        
     else:
-        start_rating = format_rating(
-            rating_change["baseline_rating"]
-        )
-
         end_rating = format_rating(
-            rating_change["current_rating"]
+        rating_change["current_rating"]
         )
+        
+        if rating_change["baseline_rating"] is None:
+            start_rating = "N/A"
+            rating_change_value = "N/A"
+        
+        else:
+            start_rating = format_rating(
+                rating_change["baseline_rating"]
+            )
+        
+            rating_change_value = format_rating_change(
+                rating_change["rating_change"]
+            )
+            
 
-        rating_change_value = format_rating_change(
-            rating_change["rating_change"]
-        )
 
     bullet_items = [
         (
