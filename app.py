@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from products import PRODUCTS
 
-from analytics.biweekly_email import build_biweekly_report
+import analytics.biweekly_email as biweekly_email
 
 from scrapers.ulta import (
     scrape_product as scrape_ulta_product,
