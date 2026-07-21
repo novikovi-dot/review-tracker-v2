@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from io import BytesIO
 from datetime import date, timedelta
@@ -1218,9 +1219,10 @@ with st.expander("Biweekly email preview"):
 
                 st.success("Preview generated.")
 
-                st.markdown(
+                components.html(
                     report_preview,
-                    unsafe_allow_html=True
+                    height=4000,
+                    scrolling=True
                 )
 
             except Exception as error:
