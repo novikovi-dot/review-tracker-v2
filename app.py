@@ -651,6 +651,11 @@ if st.button(
                 "New Reviews": 0
             })
             continue
+        if source == "Ulta":
+            st.write(
+                "Official Ulta rating received:",
+                df.attrs.get("official_average_rating")
+            )
 
         if "review_id" in df.columns:
             df = df.drop_duplicates(
