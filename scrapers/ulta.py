@@ -579,27 +579,61 @@ def create_excel_file(df):
     output.seek(0)
     return output
 
-def scrape_product(link, delay_seconds, review_progress_bar=None, review_progress_text=None):
+def scrape_product(
+    link,
+    delay_seconds,
+    review_progress_bar=None,
+    review_progress_text=None
+):
     possible_ids = extract_possible_ids(link)
 
     if review_progress_text is not None:
-        review_progress_text.write(f"Trying product IDs: {', '.join(possible_ids)}")
+        review_progress_text.write(
+            "Trying product IDs: "
+            + ", ".join(possible_ids)
+        )
 
     if not possible_ids:
         return None, None
 
+    errors = []
+
     for product_id in possible_ids:
-        df = scrape_reviews(
-            product_id,
-            delay_seconds,
-            review_progress_bar,
-            review_progress_text
-        )
+        if review_progress_text is not None:
+            review_progress_text.write(
+                f"Trying Ulta ID: {product_id}"
+            )
+
+        try:
+            df = scrape_reviews(
+                product_id,
+                delay_seconds,
+                review_progress_bar,
+                review_progress_text
+            )
+
+        except RuntimeError as error:
+            errors.append(
+                f"{product_id}: {str(error)}"
+            )
+
+            if review_progress_text is not None:
+                review_progress_text.write(
+                    f"ID {product_id} was incomplete. "
+                    "Trying the next ID..."
+                )
+
+            continue
 
         if df is not None and not df.empty:
             return df, product_id
 
-    return None, None
+    if errors:
+        raise RuntimeError(
+            "No Ulta ID produced a complete scrape. "
+            + " | ".join(errors)
+        )
 
+    return None, None
 
 
