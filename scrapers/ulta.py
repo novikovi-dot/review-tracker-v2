@@ -23,31 +23,34 @@ def clean_filename(text):
     text = text.strip("_")
     return text[:120] if text else "ulta_reviews"
 
-
 def extract_possible_ids(link):
     ids = []
 
-    patterns = [
+    # Try Ulta's SKU/item ID first.
+    sku_match = re.search(
+        r"(?:\?|&)sku=(\d+)",
+        link,
+        flags=re.IGNORECASE
+    )
+
+    if sku_match:
+        ids.append(sku_match.group(1))
+
+    other_patterns = [
         r"pimprod\d+",
         r"mkt\d+",
-        r"[a-zA-Z]*[iI]mpprod\d+",
-        r"sku=(\d+)"
+        r"[a-zA-Z]*[iI]mpprod\d+"
     ]
 
-    for pattern in patterns:
-        match = re.search(pattern, link)
-        if match:
-            ids.append(match.group(1) if match.groups() else match.group(0))
+    for pattern in other_patterns:
+        for match in re.finditer(
+            pattern,
+            link,
+            flags=re.IGNORECASE
+        ):
+            ids.append(match.group(0))
 
     return list(dict.fromkeys(ids))
-
-
-def get_property(details, property_key):
-    for prop in details.get("properties", []):
-        if prop.get("key") == property_key:
-            values = prop.get("value", [])
-            return values[0] if values else ""
-    return ""
 
 def detect_incentivized_review(review_text):
     if not review_text:
