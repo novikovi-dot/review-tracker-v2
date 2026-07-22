@@ -66,7 +66,6 @@ def check_password():
 
         st.stop()
 
-
 def scrape_selected_source(
     source,
     link,
@@ -74,28 +73,6 @@ def scrape_selected_source(
     review_progress_bar,
     review_progress_text
 ):
-    if source == "Ulta" and df is not None:
-        st.write(
-            "Ulta reported total:",
-            df.attrs.get(
-                "official_total_reviews"
-            )
-        )
-        
-        st.write(
-            "Unique reviews downloaded:",
-            df.attrs.get(
-                "downloaded_review_count",
-                len(df)
-            )
-        )
-        
-        st.write(
-            "Ulta official rating:",
-            df.attrs.get(
-                "official_average_rating"
-            )
-        )
     if source == "Ulta":
         df, working_id = scrape_ulta_product(
             link,
@@ -123,7 +100,6 @@ def scrape_selected_source(
 
     st.error("Unknown source selected.")
     return None
-
 
 def get_rating_column(df):
     if "rating" in df.columns:
@@ -664,6 +640,28 @@ if st.button(
             review_progress_text
         )
 
+        if source == "Ulta" and df is not None:
+            st.write(
+                "Ulta reported total:",
+                df.attrs.get(
+                    "official_total_reviews"
+                )
+            )
+        
+            st.write(
+                "Unique reviews downloaded:",
+                df.attrs.get(
+                    "downloaded_review_count",
+                    len(df)
+                )
+            )
+        
+            st.write(
+                "Ulta official rating:",
+                df.attrs.get(
+                    "official_average_rating"
+                )
+            )
         if df is None or df.empty:
             results_summary.append({
                 "Product": selected_product,
