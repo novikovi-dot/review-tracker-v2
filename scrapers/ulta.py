@@ -240,28 +240,39 @@ def scrape_reviews(
             ) from error
 
         results = data.get("results", []) or []
-
+    
         if page_number == 1:
-            print("\n========== ULTA API DIAGNOSTIC ==========")
-            print(f"Requested product ID: {product_id}")
-            print(f"Top-level response keys: {list(data.keys())}")
-            print(f"Paging data: {data.get('paging', {})}")
-            print(f"Number of result groups: {len(results)}")
+            diagnostic_groups = []
             
             for index, result in enumerate(results):
                 rollup = result.get("rollup", {}) or {}
             
-                print(f"\nResult group {index + 1}")
-                print(f"Result keys: {list(result.keys())}")
-                print(f"Page ID: {result.get('page_id')}")
-                print(f"Page ID alternate: {result.get('pageId')}")
-                print(f"Product ID: {result.get('product_id')}")
-                print(f"Product ID alternate: {result.get('productId')}")
-                print(f"Rollup review count: {rollup.get('review_count')}")
-                print(f"Reviews on first page: {len(result.get('reviews', []) or [])}")
+                diagnostic_groups.append({
+                    "group_number": index + 1,
+                    "page_id": (
+                        result.get("page_id")
+                        or result.get("pageId")
+                    ),
+                    "product_id": (
+                        result.get("product_id")
+                        or result.get("productId")
+                    },
+                    "rollup_review_count": rollup.get(
+                        "review_count"
+                    },
+                    "reviews_on_first_page": len(
+                        result.get("reviews", []) or []
+                    )
+                })
             
-            print("=========================================\n")
-        
+            print(
+                "\nULTA API DIAGNOSTIC\n"
+                f"Requested ID: {product_id}\n"
+                f"Paging: {data.get('paging', {})}\n"
+                f"Result groups: {diagnostic_groups}\n",
+                flush=True
+            )
+                
         if not results:
             break
 
