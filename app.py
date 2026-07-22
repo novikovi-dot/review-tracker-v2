@@ -74,6 +74,28 @@ def scrape_selected_source(
     review_progress_bar,
     review_progress_text
 ):
+    if source == "Ulta" and df is not None:
+        st.write(
+            "Ulta reported total:",
+            df.attrs.get(
+                "official_total_reviews"
+            )
+        )
+        
+        st.write(
+            "Unique reviews downloaded:",
+            df.attrs.get(
+                "downloaded_review_count",
+                len(df)
+            )
+        )
+        
+        st.write(
+            "Ulta official rating:",
+            df.attrs.get(
+                "official_average_rating"
+            )
+        )
     if source == "Ulta":
         df, working_id = scrape_ulta_product(
             link,
