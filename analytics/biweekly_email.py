@@ -495,9 +495,15 @@ def build_platform_section(
         period_reviews
     )
 
-    rating_comparison = get_period_snapshot_change(
+    snapshot_comparison = get_period_snapshot_change(
         product_name=product_name,
         source=source_used,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    review_comparison = calculate_period_rating_change(
+        reviews_df=all_reviews,
         start_date=start_date,
         end_date=end_date
     )
@@ -513,31 +519,102 @@ def build_platform_section(
         .isoformat()
     )
 
-    if rating_comparison is None:
-        start_rating = "N/A"
-        end_rating = "N/A"
-        rating_change_value = "N/A"
+    baseline_rating_value = None
+    end_rating_value = None
 
-    else:
-        start_rating = format_rating(
-            rating_comparison["baseline_rating"]
+    # Use cumulative review history as a fallback when
+    # no historical snapshot exists for the required date.
+    if review_comparison is not None:
+        review_baseline = review_comparison.get(
+            "baseline_rating"
         )
 
-        end_rating = format_rating(
-            rating_comparison["current_rating"]
+        review_current = review_comparison.get(
+            "current_rating"
         )
 
-        rating_change_value = format_rating_change(
-            rating_comparison["rating_change"]
-        )
+        if review_baseline is not None:
+            baseline_rating_value = float(
+                review_baseline
+            )
+
+        if review_current is not None:
+            end_rating_value = float(
+                review_current
+            )
 
         baseline_date = str(
-            rating_comparison.get(
+            review_comparison.get(
                 "previous_period_end",
                 baseline_date
             )
         )
 
+    # Prefer official retailer ratings from snapshots
+    # whenever an eligible snapshot exists.
+    if snapshot_comparison is not None:
+        snapshot_baseline = snapshot_comparison.get(
+            "baseline_rating"
+        )
+
+        snapshot_current = snapshot_comparison.get(
+            "current_rating"
+        )
+
+        snapshot_baseline_date = (
+            snapshot_comparison.get(
+                "previous_period_end"
+            )
+        )
+
+        snapshot_current_date = (
+            snapshot_comparison.get(
+                "current_period_end"
+            )
+        )
+
+        if snapshot_baseline is not None:
+            baseline_rating_value = float(
+                snapshot_baseline
+            )
+
+            if snapshot_baseline_date:
+                baseline_date = str(
+                    snapshot_baseline_date
+                )
+
+        if snapshot_current is not None:
+            end_rating_value = float(
+                snapshot_current
+            )
+
+            if snapshot_current_date:
+                end_rating_date = str(
+                    snapshot_current_date
+                )
+
+    start_rating = format_rating(
+        baseline_rating_value
+    )
+
+    end_rating = format_rating(
+        end_rating_value
+    )
+
+    if (
+        baseline_rating_value is not None
+        and end_rating_value is not None
+    ):
+        rating_change_value = format_rating_change(
+            end_rating_value
+            - baseline_rating_value
+        )
+    else:
+        rating_change_value = "N/A"
+
+    incentive_breakdown = calculate_incentive_breakdown(
+        period_reviews
+    )
     incentive_breakdown = calculate_incentive_breakdown(
         period_reviews
     )
