@@ -384,44 +384,65 @@ def get_existing_review_ids(product_name, source):
 
     return existing_ids
 
-def calculate_snapshot(df, source, product_name, product_url):
+def calculate_snapshot(
+    df,
+    source,
+    product_name,
+    product_url
+):
     ratings = pd.to_numeric(
-        df.get("rating", pd.Series(dtype=float)),
-        errors="coerce"
-    )
-    official_average_rating = pd.to_numeric(
-        df.attrs.get("official_average_rating"),
+        df.get(
+            "rating",
+            pd.Series(dtype=float)
+        ),
         errors="coerce"
     )
 
-    if pd.notna(official_average_rating):
-        snapshot_average_rating = float(
+    official_average_rating = df.attrs.get(
+        "official_average_rating"
+    )
+
+    try:
+        if official_average_rating in [None, ""]:
+            raise ValueError
+
+        average_rating = float(
             official_average_rating
         )
-    elif ratings.notna().any():
-        snapshot_average_rating = float(
-            ratings.mean()
+
+    except (TypeError, ValueError):
+        average_rating = (
+            round(float(ratings.mean()), 3)
+            if ratings.notna().any()
+            else None
         )
-        
-    else:
-        snapshot_average_rating = None
-    
+
+    official_recommendation_rate = df.attrs.get(
+        "official_recommendation_rate"
+    )
+
     recommendation_rate = None
 
-    if "recommended" in df.columns:
-        recommendations = df["recommended"].apply(normalize_boolean)
-        valid_recommendations = recommendations.dropna()
-
-        if not valid_recommendations.empty:
-            recommendation_rate = round(
-                valid_recommendations.mean() * 100,
-                2
+    if official_recommendation_rate not in [
+        None,
+        ""
+    ]:
+        try:
+            recommendation_rate = float(
+                str(official_recommendation_rate)
+                .strip()
+                .replace("%", "")
             )
+        except (TypeError, ValueError):
+            recommendation_rate = None
 
     verified_purchase_rate = None
 
     if "verified_purchase" in df.columns:
-        verified = df["verified_purchase"].apply(normalize_boolean)
+        verified = df[
+            "verified_purchase"
+        ].apply(normalize_boolean)
+
         valid_verified = verified.dropna()
 
         if not valid_verified.empty:
@@ -436,20 +457,27 @@ def calculate_snapshot(df, source, product_name, product_url):
         "scrape_date": date.today().isoformat(),
         "product_url": product_url,
         "total_reviews": int(len(df)),
-        "average_rating": (
-            round(snapshot_average_rating, 3)
-            if snapshot_average_rating is not None
-            else None
+        "average_rating": average_rating,
+        "five_star_reviews": int(
+            (ratings == 5).sum()
         ),
-        "five_star_reviews": int((ratings == 5).sum()),
-        "four_star_reviews": int((ratings == 4).sum()),
-        "three_star_reviews": int((ratings == 3).sum()),
-        "two_star_reviews": int((ratings == 2).sum()),
-        "one_star_reviews": int((ratings == 1).sum()),
+        "four_star_reviews": int(
+            (ratings == 4).sum()
+        ),
+        "three_star_reviews": int(
+            (ratings == 3).sum()
+        ),
+        "two_star_reviews": int(
+            (ratings == 2).sum()
+        ),
+        "one_star_reviews": int(
+            (ratings == 1).sum()
+        ),
         "recommendation_rate": recommendation_rate,
-        "verified_purchase_rate": verified_purchase_rate
+        "verified_purchase_rate": (
+            verified_purchase_rate
+        )
     }
-
 
 def save_snapshot(df, source, product_name, product_url):
     if df is None or df.empty:
@@ -502,6 +530,113 @@ def load_snapshots(product_name, source=None):
     response = query.execute()
 
     return pd.DataFrame(response.data or [])
+
+def get_period_snapshot_change(
+    product_name,
+    source,
+    start_date,
+    end_date
+):
+    snapshots = load_snapshots(
+        product_name=product_name,
+        source=source
+    )
+
+    if snapshots is None or snapshots.empty:
+        return None
+
+    working_df = snapshots.copy()
+
+    working_df["parsed_scrape_date"] = (
+        pd.to_datetime(
+            working_df["scrape_date"],
+            errors="coerce"
+        )
+    )
+
+    working_df["numeric_average_rating"] = (
+        pd.to_numeric(
+            working_df["average_rating"],
+            errors="coerce"
+        )
+    )
+
+    working_df = (
+        working_df
+        .dropna(
+            subset=[
+                "parsed_scrape_date",
+                "numeric_average_rating"
+            ]
+        )
+        .sort_values("parsed_scrape_date")
+        .reset_index(drop=True)
+    )
+
+    if working_df.empty:
+        return None
+
+    baseline_cutoff = (
+        pd.Timestamp(start_date)
+        - pd.Timedelta(days=1)
+    )
+
+    current_cutoff = pd.Timestamp(
+        end_date
+    )
+
+    baseline_rows = working_df[
+        working_df["parsed_scrape_date"]
+        <= baseline_cutoff
+    ]
+
+    current_rows = working_df[
+        working_df["parsed_scrape_date"]
+        <= current_cutoff
+    ]
+
+    if (
+        baseline_rows.empty
+        or current_rows.empty
+    ):
+        return None
+
+    baseline_row = baseline_rows.iloc[-1]
+    current_row = current_rows.iloc[-1]
+
+    baseline_rating = float(
+        baseline_row[
+            "numeric_average_rating"
+        ]
+    )
+
+    current_rating = float(
+        current_row[
+            "numeric_average_rating"
+        ]
+    )
+
+    return {
+        "baseline_rating": baseline_rating,
+        "current_rating": current_rating,
+        "rating_change": (
+            current_rating - baseline_rating
+        ),
+        "previous_period_end": (
+            baseline_row[
+                "parsed_scrape_date"
+            ]
+            .date()
+            .isoformat()
+        ),
+        "current_period_end": (
+            current_row[
+                "parsed_scrape_date"
+            ]
+            .date()
+            .isoformat()
+        )
+    }
 
 def get_snapshot_changes(product_name, source):
     snapshots = load_snapshots(
