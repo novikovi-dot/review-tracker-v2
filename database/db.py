@@ -589,144 +589,56 @@ def get_period_snapshot_change(
         <= current_cutoff
     ]
 
-    if baseline_rows.empty or current_rows.empty:
-        return None
+    result = {
+        "baseline_rating": None,
+        "current_rating": None,
+        "rating_change": None,
+        "previous_period_end": None,
+        "current_period_end": None
+    }
 
-    baseline_row = baseline_rows.iloc[-1]
-    current_row = current_rows.iloc[-1]
+    if not baseline_rows.empty:
+        baseline_row = baseline_rows.iloc[-1]
 
-    baseline_rating = float(
-        baseline_row["numeric_average_rating"]
-    )
+        result["baseline_rating"] = float(
+            baseline_row["numeric_average_rating"]
+        )
 
-    current_rating = float(
-        current_row["numeric_average_rating"]
-    )
-
-    return {
-        "baseline_rating": baseline_rating,
-        "current_rating": current_rating,
-        "rating_change": (
-            current_rating - baseline_rating
-        ),
-        "previous_period_end": (
+        result["previous_period_end"] = (
             baseline_row["parsed_scrape_date"]
             .date()
             .isoformat()
-        ),
-        "current_period_end": (
+        )
+
+    if not current_rows.empty:
+        current_row = current_rows.iloc[-1]
+
+        result["current_rating"] = float(
+            current_row["numeric_average_rating"]
+        )
+
+        result["current_period_end"] = (
             current_row["parsed_scrape_date"]
             .date()
             .isoformat()
         )
-    }
-
-def get_period_snapshot_change(
-    product_name,
-    source,
-    start_date,
-    end_date
-):
-    snapshots = load_snapshots(
-        product_name=product_name,
-        source=source
-    )
-
-    if snapshots is None or snapshots.empty:
-        return None
-
-    working_df = snapshots.copy()
-
-    working_df["parsed_scrape_date"] = (
-        pd.to_datetime(
-            working_df["scrape_date"],
-            errors="coerce"
-        )
-    )
-
-    working_df["numeric_average_rating"] = (
-        pd.to_numeric(
-            working_df["average_rating"],
-            errors="coerce"
-        )
-    )
-
-    working_df = (
-        working_df
-        .dropna(
-            subset=[
-                "parsed_scrape_date",
-                "numeric_average_rating"
-            ]
-        )
-        .sort_values("parsed_scrape_date")
-        .reset_index(drop=True)
-    )
-
-    if working_df.empty:
-        return None
-
-    baseline_cutoff = (
-        pd.Timestamp(start_date)
-        - pd.Timedelta(days=1)
-    )
-
-    current_cutoff = pd.Timestamp(
-        end_date
-    )
-
-    baseline_rows = working_df[
-        working_df["parsed_scrape_date"]
-        <= baseline_cutoff
-    ]
-
-    current_rows = working_df[
-        working_df["parsed_scrape_date"]
-        <= current_cutoff
-    ]
 
     if (
-        baseline_rows.empty
-        or current_rows.empty
+        result["baseline_rating"] is not None
+        and result["current_rating"] is not None
+    ):
+        result["rating_change"] = (
+            result["current_rating"]
+            - result["baseline_rating"]
+        )
+
+    if (
+        result["baseline_rating"] is None
+        and result["current_rating"] is None
     ):
         return None
 
-    baseline_row = baseline_rows.iloc[-1]
-    current_row = current_rows.iloc[-1]
-
-    baseline_rating = float(
-        baseline_row[
-            "numeric_average_rating"
-        ]
-    )
-
-    current_rating = float(
-        current_row[
-            "numeric_average_rating"
-        ]
-    )
-
-    return {
-        "baseline_rating": baseline_rating,
-        "current_rating": current_rating,
-        "rating_change": (
-            current_rating - baseline_rating
-        ),
-        "previous_period_end": (
-            baseline_row[
-                "parsed_scrape_date"
-            ]
-            .date()
-            .isoformat()
-        ),
-        "current_period_end": (
-            current_row[
-                "parsed_scrape_date"
-            ]
-            .date()
-            .isoformat()
-        )
-    }
+    return result
 
 def get_snapshot_changes(product_name, source):
     snapshots = load_snapshots(
