@@ -29,6 +29,7 @@ from database.db import (
     save_reviews,
     save_snapshot,
     get_snapshot_changes,
+    get_period_snapshot_change,
     load_reviews_by_date_range,
     load_all_reviews
 )
@@ -979,13 +980,9 @@ if st.button(
             )
             
             if not report_all_time:
-                all_history_df = load_all_reviews(
+                rating_comparison = get_period_snapshot_change(
                     product_name=selected_product,
-                    source=source
-                )
-
-                rating_comparison = calculate_period_rating_change(
-                    reviews_df=all_history_df,
+                    source=source,
                     start_date=report_start_date,
                     end_date=report_end_date
                 )
