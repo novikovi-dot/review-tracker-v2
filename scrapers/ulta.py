@@ -256,10 +256,10 @@ def scrape_reviews(
                     "product_id": (
                         result.get("product_id")
                         or result.get("productId")
-                    },
+                    ),
                     "rollup_review_count": rollup.get(
                         "review_count"
-                    },
+                    ),
                     "reviews_on_first_page": len(
                         result.get("reviews", []) or []
                     )
