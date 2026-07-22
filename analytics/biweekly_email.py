@@ -493,17 +493,51 @@ def build_platform_section(
     period_average = calculate_new_review_average(
         period_reviews
     )
-    
-    rating_change = calculate_period_rating_change(
+
+    rating_comparison = calculate_period_rating_change(
         reviews_df=all_reviews,
         start_date=start_date,
         end_date=end_date
     )
-    
-    incentive_breakdown = (
-        calculate_incentive_breakdown(
-            period_reviews
+
+    baseline_date = (
+        pd.Timestamp(start_date)
+        - pd.Timedelta(days=1)
+    ).date().isoformat()
+
+    end_rating_date = (
+        pd.Timestamp(end_date)
+        .date()
+        .isoformat()
+    )
+
+    if rating_comparison is None:
+        start_rating = "N/A"
+        end_rating = "N/A"
+        rating_change_value = "N/A"
+
+    else:
+        start_rating = format_rating(
+            rating_comparison["baseline_rating"]
         )
+
+        end_rating = format_rating(
+            rating_comparison["current_rating"]
+        )
+
+        rating_change_value = format_rating_change(
+            rating_comparison["rating_change"]
+        )
+
+        baseline_date = str(
+            rating_comparison.get(
+                "previous_period_end",
+                baseline_date
+            )
+        )
+
+    incentive_breakdown = calculate_incentive_breakdown(
+        period_reviews
     )
 
     (
@@ -513,42 +547,6 @@ def build_platform_section(
     ) = split_reviews_by_rating(
         period_reviews
     )
-
-   baseline_date = (
-        pd.Timestamp(start_date)
-        - pd.Timedelta(days=1)
-    ).date().isoformat()
-        
-    end_rating_date = (
-        pd.Timestamp(end_date)
-        .date()
-        .isoformat()
-    )
-        
-    if rating_change is None:
-        start_rating = "N/A"
-        end_rating = "N/A"
-        rating_change_value = "N/A"
-        
-     else:
-        start_rating = format_rating(
-            rating_change["baseline_rating"]
-        )
-        
-        end_rating = format_rating(
-            rating_change["current_rating"]
-        )
-        
-        rating_change_value = format_rating_change(
-            rating_change["rating_change"]
-        )
-        
-        baseline_date = str(
-            rating_change.get(
-                "previous_period_end",
-                baseline_date
-            )
-        )
 
     bullet_items = [
         (
@@ -561,15 +559,6 @@ def build_platform_section(
             "<li>"
             "<strong>Average rating of period reviews:</strong> "
             f"{format_rating(period_average)}"
-            "</li>"
-        ),
-       
-        (
-            "<li>"
-            "<strong>Incentivized reviews:</strong> "
-            f"{incentive_breakdown['incentivized_count']} "
-            "reviews; average rating "
-            f"{format_rating(incentive_breakdown['incentivized_average'])}"
             "</li>"
         ),
         (
@@ -594,10 +583,26 @@ def build_platform_section(
         ),
         (
             "<li>"
+            "<strong>Incentivized reviews:</strong> "
+            f"{incentive_breakdown['incentivized_count']} "
+            "reviews; average rating "
+            f"{format_rating(
+                incentive_breakdown[
+                    'incentivized_average'
+                ]
+            )}"
+            "</li>"
+        ),
+        (
+            "<li>"
             "<strong>Non-incentivized reviews:</strong> "
             f"{incentive_breakdown['non_incentivized_count']} "
             "reviews; average rating "
-            f"{format_rating(incentive_breakdown['non_incentivized_average'])}"
+            f"{format_rating(
+                incentive_breakdown[
+                    'non_incentivized_average'
+                ]
+            )}"
             "</li>"
         )
     ]
@@ -621,24 +626,37 @@ def build_platform_section(
                 "</li>"
             )
         )
+
     else:
         bullet_items.extend([
             (
                 "<li>"
                 "<strong>Positive themes:</strong> "
-                f"{escape(format_theme_summary(positive_reviews))}"
+                f"{escape(
+                    format_theme_summary(
+                        positive_reviews
+                    )
+                )}"
                 "</li>"
             ),
             (
                 "<li>"
                 "<strong>Mixed themes:</strong> "
-                f"{escape(format_theme_summary(mixed_reviews))}"
+                f"{escape(
+                    format_theme_summary(
+                        mixed_reviews
+                    )
+                )}"
                 "</li>"
             ),
             (
                 "<li>"
                 "<strong>Negative themes:</strong> "
-                f"{escape(format_theme_summary(negative_reviews))}"
+                f"{escape(
+                    format_theme_summary(
+                        negative_reviews
+                    )
+                )}"
                 "</li>"
             )
         ])
