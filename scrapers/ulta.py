@@ -26,7 +26,7 @@ def clean_filename(text):
 def extract_possible_ids(link):
     ids = []
 
-    # Try Ulta's SKU/item ID first.
+    # Extract the numeric SKU first.
     sku_match = re.search(
         r"(?:\?|&)sku=(\d+)",
         link,
@@ -36,21 +36,31 @@ def extract_possible_ids(link):
     if sku_match:
         ids.append(sku_match.group(1))
 
+    # Then try the product-page IDs.
     other_patterns = [
         r"pimprod\d+",
         r"mkt\d+",
-        r"[a-zA-Z]*[iI]mpprod\d+"
+        r"[a-zA-Z]*impprod\d+"
     ]
 
     for pattern in other_patterns:
-        for match in re.finditer(
+        matches = re.findall(
             pattern,
             link,
             flags=re.IGNORECASE
-        ):
-            ids.append(match.group(0))
+        )
+
+        ids.extend(matches)
 
     return list(dict.fromkeys(ids))
+
+def get_property(details, property_key):
+    for prop in details.get("properties", []):
+        if prop.get("key") == property_key:
+            values = prop.get("value", [])
+            return values[0] if values else ""
+
+    return ""
 
 def detect_incentivized_review(review_text):
     if not review_text:
