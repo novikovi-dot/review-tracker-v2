@@ -6,7 +6,8 @@ import pandas as pd
 
 from database.db import (
     load_all_reviews,
-    load_reviews_by_date_range
+    load_reviews_by_date_range,
+    get_period_snapshot_change
 )
 
 from analytics.reporting import (
@@ -494,8 +495,9 @@ def build_platform_section(
         period_reviews
     )
 
-    rating_comparison = calculate_period_rating_change(
-        reviews_df=all_reviews,
+    rating_comparison = get_period_snapshot_change(
+        product_name=product_name,
+        source=source_used,
         start_date=start_date,
         end_date=end_date
     )
