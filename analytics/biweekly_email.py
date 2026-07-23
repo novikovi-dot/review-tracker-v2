@@ -20,18 +20,21 @@ from products import PRODUCTS
 
 REPORT_LENGTH_DAYS = 14
 
-REPORT_OUTPUT_PATH_VALUE = os.getenv(
-    "BEAUTY_REPORT_OUTPUT_PATH"
-)
+def get_report_output_path():
+    """
+    Return the local SharePoint output path when configured.
 
-if not REPORT_OUTPUT_PATH_VALUE:
-    raise RuntimeError(
-        "BEAUTY_REPORT_OUTPUT_PATH environment variable is not configured."
+    Streamlit Cloud does not need this path because it only
+    generates and displays the report.
+    """
+    path_value = os.getenv(
+        "BEAUTY_REPORT_OUTPUT_PATH"
     )
 
-REPORT_OUTPUT_PATH = Path(
-    REPORT_OUTPUT_PATH_VALUE
-)
+    if not path_value:
+        return None
+
+    return Path(path_value)
 
 SOURCE_CANDIDATES = {
     "Ulta": [
