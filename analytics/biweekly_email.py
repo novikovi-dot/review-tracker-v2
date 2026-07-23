@@ -1,6 +1,8 @@
 from collections import Counter
 from datetime import date, timedelta
 from html import escape
+import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -17,6 +19,19 @@ from analytics.reporting import (
 from products import PRODUCTS
 
 REPORT_LENGTH_DAYS = 14
+
+REPORT_OUTPUT_PATH_VALUE = os.getenv(
+    "BEAUTY_REPORT_OUTPUT_PATH"
+)
+
+if not REPORT_OUTPUT_PATH_VALUE:
+    raise RuntimeError(
+        "BEAUTY_REPORT_OUTPUT_PATH environment variable is not configured."
+    )
+
+REPORT_OUTPUT_PATH = Path(
+    REPORT_OUTPUT_PATH_VALUE
+)
 
 SOURCE_CANDIDATES = {
     "Ulta": [
