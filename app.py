@@ -111,6 +111,31 @@ def get_rating_column(df):
 
     return None
 
+def format_optional_rating(value):
+    if value is None:
+        return "N/A"
+
+    try:
+        if pd.isna(value):
+            return "N/A"
+    except (TypeError, ValueError):
+        return "N/A"
+
+    return f"{float(value):.2f}"
+
+
+def format_optional_delta(value):
+    if value is None:
+        return None
+
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    return f"{float(value):+.2f}"
+
 def summarize_retailer(
     df,
     source,
@@ -997,43 +1022,64 @@ if st.button(
                         "calculated because there are not enough dated "
                         "historical reviews."
                     )
+                    
                 else:
-                    period_current_rating = rating_comparison[
+                    period_current_rating = rating_comparison.get(
                         "current_rating"
-                    ]
-                    period_baseline_rating = rating_comparison[
+                    )
+                    
+                    period_baseline_rating = rating_comparison.get(
                         "baseline_rating"
-                    ]
-                    period_rating_change = rating_comparison[
+                    )
+                    
+                    period_rating_change = rating_comparison.get(
                         "rating_change"
-                    ]
-                    baseline_end_date = rating_comparison[
+                    )
+                    
+                    baseline_end_date = rating_comparison.get(
                         "previous_period_end"
-                    ]
-
+                    )
+                    
                     period_col1, period_col2 = st.columns(2)
-
+                    
                     with period_col1:
                         st.metric(
                             label=f"Rating through {report_end_date}",
-                            value=f"{period_current_rating:.2f}",
-                            delta=f"{period_rating_change:+.2f}"
-                        )
-
-                    with period_col2:
-                        st.metric(
-                            label=(
-                                f"Baseline through {baseline_end_date}"
+                            value=format_optional_rating(
+                                period_current_rating
                             ),
-                            value=f"{period_baseline_rating:.2f}"
+                            delta=format_optional_delta(
+                                period_rating_change
+                            )
                         )
-
-                    st.caption(
-                        f"Selected period: {report_start_date} through "
-                        f"{report_end_date}. The baseline is the cumulative "
-                        f"rating through {baseline_end_date}, which is the "
-                        "day before the selected period began."
-                    )
+                    
+                    with period_col2:
+                        baseline_label = (
+                            f"Baseline through {baseline_end_date}"
+                            if baseline_end_date
+                            else "Baseline rating"
+                        )
+                    
+                        st.metric(
+                            label=baseline_label,
+                            value=format_optional_rating(
+                                period_baseline_rating
+                            )
+                        )
+                    
+                    if period_baseline_rating is None:
+                        st.caption(
+                            "No cumulative rating baseline was available "
+                            "before the selected reporting period."
+                        )
+                    
+                    else:
+                        st.caption(
+                            f"Selected period: {report_start_date} through "
+                            f"{report_end_date}. The baseline is the "
+                            f"cumulative rating through {baseline_end_date}, "
+                            "which is the day before the selected period began."
+                        )
         except Exception as error:
             saved_count = 0
             new_reviews_df = pd.DataFrame()
@@ -1046,13 +1092,12 @@ if st.button(
             emerging_alerts = []
 
             retailer_update = (
-                f"{source}: Review analysis was not "
-                "created because database saving failed."
+                f"{source}: Review processing was not completed."
             )
-
+                
             st.warning(
-                f"{source} reviews were scraped "
-                "successfully, but database saving failed."
+                f"{source} reviews were scraped, but a later "
+                "report-processing step failed."
             )
 
             st.code(str(error))
