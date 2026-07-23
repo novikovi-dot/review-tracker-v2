@@ -243,6 +243,132 @@ def create_rating_breakdown(df):
 
     return breakdown
 
+def clean_optional_rating(value):
+    if value is None:
+        return None
+
+    try:
+        if pd.isna(value):
+            return None
+
+        return float(value)
+
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_period_rating_comparison(
+    product_name,
+    source,
+    all_reviews,
+    start_date,
+    end_date
+):
+    """
+    Prefer official cumulative retailer ratings from snapshots.
+
+    Use cumulative ratings calculated from stored reviews only
+    when the required snapshots are unavailable.
+    """
+    review_comparison = calculate_period_rating_change(
+        reviews_df=all_reviews,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    snapshot_comparison = get_period_snapshot_change(
+        product_name=product_name,
+        source=source,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    baseline_date = (
+        pd.Timestamp(start_date)
+        - pd.Timedelta(days=1)
+    ).date().isoformat()
+
+    current_date = (
+        pd.Timestamp(end_date)
+        .date()
+        .isoformat()
+    )
+
+    baseline_rating = None
+    current_rating = None
+
+    # Fallback: calculated cumulative review ratings
+    if review_comparison is not None:
+        review_baseline = clean_optional_rating(
+            review_comparison.get("baseline_rating")
+        )
+
+        review_current = clean_optional_rating(
+            review_comparison.get("current_rating")
+        )
+
+        if review_baseline is not None:
+            baseline_rating = review_baseline
+
+        if review_current is not None:
+            current_rating = review_current
+
+        review_baseline_date = review_comparison.get(
+            "previous_period_end"
+        )
+
+        if review_baseline_date:
+            baseline_date = str(review_baseline_date)
+
+    # Preferred: official retailer snapshot ratings
+    if snapshot_comparison is not None:
+        snapshot_baseline = clean_optional_rating(
+            snapshot_comparison.get("baseline_rating")
+        )
+
+        snapshot_current = clean_optional_rating(
+            snapshot_comparison.get("current_rating")
+        )
+
+        if snapshot_baseline is not None:
+            baseline_rating = snapshot_baseline
+
+            snapshot_baseline_date = snapshot_comparison.get(
+                "previous_period_end"
+            )
+
+            if snapshot_baseline_date:
+                baseline_date = str(snapshot_baseline_date)
+
+        if snapshot_current is not None:
+            current_rating = snapshot_current
+
+            snapshot_current_date = snapshot_comparison.get(
+                "current_period_end"
+            )
+
+            if snapshot_current_date:
+                current_date = str(snapshot_current_date)
+
+    rating_change = None
+
+    if (
+        baseline_rating is not None
+        and current_rating is not None
+    ):
+        rating_change = (
+            current_rating
+            - baseline_rating
+        )
+
+    return {
+        "baseline_rating": baseline_rating,
+        "current_rating": current_rating,
+        "rating_change": rating_change,
+        "previous_period_end": baseline_date,
+        "current_period_end": current_date
+    }
+
 def create_combined_excel_report(
     retailer_data,
     retailer_links,
